@@ -29,34 +29,52 @@ npm install
 
 ### 2. Configure Environment Variables
 
-Copy the example environment file and add your OpenAI API key:
+**IMPORTANT**: You must add your OpenAI API key before the application will work.
+
+1. Copy the example environment file:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and add your OpenAI API key:
+2. Edit `.env` and add your OpenAI API key:
 
 ```env
 OPENAI_API_KEY=sk-your-actual-api-key-here
 ```
 
-**Note**: Supabase credentials are automatically configured in the environment.
+**Get your OpenAI API key:**
+- Go to https://platform.openai.com/api-keys
+- Create a new API key
+- Copy and paste it into your `.env` file
 
-### 3. Initialize Database
+**Note**: Supabase credentials (NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY) are automatically configured.
 
-The database will be automatically initialized with default templates and interventions when you first run the application. The schema includes:
+### 3. Database Setup
 
-- **Templates table**: Stores note templates with style settings
-- **Notes table**: Stores generated notes with input data
-- **Intervention library table**: Pre-loaded PT interventions
-- **User settings table**: Application preferences
+The database is pre-configured with Supabase and includes:
+- ✅ All tables created (templates, notes, intervention_library, user_settings)
+- ✅ Default templates for all 5 note types
+- ✅ 40+ pre-loaded PT interventions
+- ✅ Row Level Security (RLS) enabled
+
+No additional database setup required!
 
 ### 4. Run Development Server
 
 ```bash
 npm run dev
 ```
+
+Open [http://localhost:3000](http://localhost:3000) to view the application.
+
+### 5. Test the Application
+
+1. Click "Create New Note"
+2. Select a note type (e.g., Daily SOAP Note)
+3. Fill out the form sections
+4. Click "Generate Note"
+5. View, copy, or export your generated note
 
 The application will be available at `http://localhost:3000`
 
