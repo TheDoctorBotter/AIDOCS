@@ -115,3 +115,17 @@ export const INTERVENTION_CATEGORIES = [
   'Patient Education',
   'Other',
 ] as const;
+
+export interface BrandingSettings {
+  id?: string;
+  clinic_name: string;
+  address: string;
+  phone: string;
+  email: string;
+  website: string;
+  logo_url: string | null;
+  letterhead_url: string | null;
+  show_in_notes: boolean;
+  created_at?: string;
+  updated_at?: string;
+}

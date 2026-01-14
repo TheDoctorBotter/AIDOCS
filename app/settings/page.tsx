@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { ArrowLeft, Database, Key, FileText } from 'lucide-react';
+import { ArrowLeft, Database, Key, FileText, Image } from 'lucide-react';
 
 export default function SettingsPage() {
   return (
@@ -30,6 +30,25 @@ export default function SettingsPage() {
         </div>
 
         <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Image className="h-6 w-6 text-blue-600" />
+                <div>
+                  <CardTitle>Clinic Branding</CardTitle>
+                  <CardDescription>
+                    Upload clinic logo and letterhead for professional documentation
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Link href="/settings/branding">
+                <Button>Manage Branding</Button>
+              </Link>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">

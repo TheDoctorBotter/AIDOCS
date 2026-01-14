@@ -7,9 +7,10 @@ AI-powered **outpatient** physical therapy documentation assistant built with Ne
 - **Outpatient Note Types**: Daily SOAP notes and PT Evaluations **only**
 - **Structured Input Forms**: Comprehensive forms with dropdowns, sliders, and multi-select options
 - **AI-Powered Generation**: Uses OpenAI LLM to generate professional documentation
+- **Clinic Branding**: Upload clinic logo and letterhead for professional branded documentation
 - **Template Manager**: Pre-configured templates optimized for outpatient settings
 - **Intervention Library**: 20+ pre-loaded common PT interventions and exercises
-- **Export Options**: Copy to clipboard for easy pasting into EMR systems
+- **Export Options**: Copy to clipboard and export branded PDFs
 - **Safety Features**: Prominent PHI warning banner and draft documentation alerts
 - **Rate Limiting**: Built-in protection (10 requests/minute) to prevent API abuse
 - **Data Persistence**: All notes and templates stored securely in Supabase
@@ -138,6 +139,28 @@ npm start
    - `{{objective}}` - Objective findings
    - `{{assessment}}` - Clinical assessment
    - `{{plan}}` - Treatment plan
+
+### Clinic Branding
+
+**Add your clinic's professional branding to all documentation:**
+
+1. Navigate to **Settings** > **Manage Branding**
+2. Upload your assets:
+   - **Logo** (PNG/JPEG, max 5MB) - Displayed with contact info
+   - **Letterhead** (PNG/JPEG, max 5MB) - Full-width header image
+3. Enter clinic information:
+   - Clinic name, address, phone, email, website
+4. Toggle **"Show branding in notes"** to enable/disable
+5. Preview your branding in real-time
+
+**Branding Features:**
+- ✅ Appears at the top of generated notes (when enabled)
+- ✅ Included in PDF exports via "Branded PDF" button
+- ✅ Copy note with branding header using "Copy Note" button
+- ✅ Choose between logo+text or full letterhead display
+- ✅ All assets stored securely in Supabase Storage
+
+**Note:** Branding does not contain PHI. It's general clinic information only.
 
 ### Intervention Library
 

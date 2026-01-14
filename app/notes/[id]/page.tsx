@@ -19,20 +19,24 @@ import {
   Download,
   Check,
   AlertCircle,
+  FileText,
 } from 'lucide-react';
-import { Note, NOTE_TYPE_LABELS } from '@/lib/types';
+import { Note, NOTE_TYPE_LABELS, BrandingSettings } from '@/lib/types';
 import { format } from 'date-fns';
+import BrandingHeader from '@/components/BrandingHeader';
 
 export default function NoteDetailPage() {
   const params = useParams();
   const router = useRouter();
   const [note, setNote] = useState<Note | null>(null);
+  const [branding, setBranding] = useState<BrandingSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (params.id) {
       fetchNote(params.id as string);
+      fetchBranding();
     }
   }, [params.id]);
 
@@ -53,11 +57,32 @@ export default function NoteDetailPage() {
     }
   };
 
+  const fetchBranding = async () => {
+    try {
+      const response = await fetch('/api/branding');
+      if (response.ok) {
+        const data = await response.json();
+        setBranding(data);
+      }
+    } catch (error) {
+      console.error('Error fetching branding:', error);
+    }
+  };
+
   const copyToClipboard = async () => {
     if (!note) return;
 
+    let textToCopy = note.output_text;
+
+    if (branding?.show_in_notes) {
+      const brandingText = generateBrandingText(branding);
+      if (brandingText) {
+        textToCopy = brandingText + '\n\n' + note.output_text;
+      }
+    }
+
     try {
-      await navigator.clipboard.writeText(note.output_text);
+      await navigator.clipboard.writeText(textToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -65,11 +90,74 @@ export default function NoteDetailPage() {
     }
   };
 
-  const exportToPDF = () => {
+  const generateBrandingText = (settings: BrandingSettings): string => {
+    const parts: string[] = [];
+
+    if (settings.clinic_name) {
+      parts.push(settings.clinic_name);
+    }
+    if (settings.address) {
+      parts.push(settings.address);
+    }
+    if (settings.phone) {
+      parts.push(`Phone: ${settings.phone}`);
+    }
+    if (settings.email) {
+      parts.push(`Email: ${settings.email}`);
+    }
+    if (settings.website) {
+      parts.push(`Web: ${settings.website}`);
+    }
+
+    return parts.join('\n');
+  };
+
+  const exportToPDF = (withBranding = false) => {
     if (!note) return;
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
+
+    let brandingHTML = '';
+    if (withBranding && branding) {
+      if (branding.letterhead_url) {
+        brandingHTML = `
+          <div style="border-bottom: 2px solid #1e293b; padding-bottom: 20px; margin-bottom: 30px;">
+            <img src="${branding.letterhead_url}" alt="Clinic Letterhead" style="width: 100%; max-height: 200px; object-fit: contain;" />
+          </div>
+        `;
+      } else if (branding.logo_url) {
+        brandingHTML = `
+          <div style="border-bottom: 2px solid #1e293b; padding-bottom: 20px; margin-bottom: 30px; display: flex; gap: 20px; align-items: start;">
+            <img src="${branding.logo_url}" alt="Clinic Logo" style="height: 64px; width: 64px; object-fit: contain; flex-shrink: 0;" />
+            <div style="flex: 1;">
+              ${branding.clinic_name ? `<h2 style="margin: 0 0 8px 0; font-size: 20px; color: #1e293b;">${branding.clinic_name}</h2>` : ''}
+              ${branding.address ? `<p style="margin: 0 0 8px 0; font-size: 13px; white-space: pre-line; color: #475569;">${branding.address}</p>` : ''}
+              <div style="font-size: 13px; color: #64748b;">
+                ${branding.phone ? `<div>Phone: ${branding.phone}</div>` : ''}
+                ${branding.email ? `<div>Email: ${branding.email}</div>` : ''}
+                ${branding.website ? `<div>Web: ${branding.website}</div>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        const brandingText = generateBrandingText(branding);
+        if (brandingText) {
+          brandingHTML = `
+            <div style="border-bottom: 2px solid #1e293b; padding-bottom: 20px; margin-bottom: 30px; text-align: center;">
+              ${branding.clinic_name ? `<h2 style="margin: 0 0 8px 0; font-size: 20px; color: #1e293b;">${branding.clinic_name}</h2>` : ''}
+              ${branding.address ? `<p style="margin: 0 0 8px 0; font-size: 13px; white-space: pre-line; color: #475569;">${branding.address}</p>` : ''}
+              <div style="font-size: 13px; color: #64748b;">
+                ${branding.phone ? `<div>Phone: ${branding.phone}</div>` : ''}
+                ${branding.email ? `<div>Email: ${branding.email}</div>` : ''}
+                ${branding.website ? `<div>Web: ${branding.website}</div>` : ''}
+              </div>
+            </div>
+          `;
+        }
+      }
+    }
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -128,6 +216,7 @@ export default function NoteDetailPage() {
           </style>
         </head>
         <body>
+          ${brandingHTML}
           <div class="warning">
             <strong>DRAFT DOCUMENTATION</strong> - This note must be reviewed and approved by a licensed clinician before use.
           </div>
@@ -219,14 +308,20 @@ export default function NoteDetailPage() {
               ) : (
                 <>
                   <Copy className="mr-2 h-4 w-4" />
-                  Copy
+                  Copy Note
                 </>
               )}
             </Button>
-            <Button onClick={exportToPDF}>
+            <Button variant="outline" onClick={() => exportToPDF(false)}>
               <Download className="mr-2 h-4 w-4" />
               Export PDF
             </Button>
+            {branding && (branding.logo_url || branding.letterhead_url || branding.clinic_name) && (
+              <Button onClick={() => exportToPDF(true)}>
+                <FileText className="mr-2 h-4 w-4" />
+                Branded PDF
+              </Button>
+            )}
           </div>
         </div>
 
@@ -274,6 +369,7 @@ export default function NoteDetailPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {branding && <BrandingHeader settings={branding} variant="display" />}
             <div className="whitespace-pre-wrap font-mono text-sm bg-slate-50 p-6 rounded-lg border">
               {note.output_text}
             </div>
