@@ -76,6 +76,8 @@ export default function BrandingSettingsPage() {
     setUploading(true);
 
     try {
+      console.log('[Branding Frontend] Uploading file:', { name: file.name, size: file.size, type });
+
       const formData = new FormData();
       formData.append('file', file);
       formData.append('type', type);
@@ -86,11 +88,23 @@ export default function BrandingSettingsPage() {
       });
 
       const data = await response.json();
+      console.log('[Branding Frontend] Upload response:', { ok: response.ok, status: response.status, data });
 
       if (!response.ok) {
-        throw new Error(data.error || 'Upload failed');
+        let errorMessage = data.error || 'Upload failed';
+        if (data.details) {
+          errorMessage += `\n${data.details}`;
+        }
+        console.error('[Branding Frontend] Upload error:', errorMessage);
+        throw new Error(errorMessage);
       }
 
+      if (!data.url) {
+        console.error('[Branding Frontend] No URL in response:', data);
+        throw new Error('Upload succeeded but no URL was returned');
+      }
+
+      console.log('[Branding Frontend] Upload successful, updating settings');
       setSettings(prev => ({
         ...prev,
         [type === 'logo' ? 'logo_url' : 'letterhead_url']: data.url,
@@ -101,10 +115,10 @@ export default function BrandingSettingsPage() {
         description: `${type === 'logo' ? 'Logo' : 'Letterhead'} uploaded successfully`,
       });
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error('[Branding Frontend] Error in handleFileUpload:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to upload file';
       toast({
-        title: 'Error',
+        title: 'Upload Failed',
         description: errorMessage,
         variant: 'destructive',
       });

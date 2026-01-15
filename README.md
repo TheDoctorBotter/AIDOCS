@@ -343,25 +343,52 @@ npm run lint       # Check for linting issues
 ```
 
 ### File Upload Errors (Branding)
-If you can't upload logo or letterhead files:
-1. **Check Environment Variables**: Ensure both are set in `.env`:
-   - `SUPABASE_URL` (server-side URL)
-   - `SUPABASE_SERVICE_ROLE_KEY` (service role key)
-2. **Verify Storage Bucket**:
-   - Go to Supabase Dashboard > Storage
-   - Confirm "branding" bucket exists
-   - Make sure it's set to "Public" access
-3. **Check File Requirements**:
-   - Supported formats: PNG, JPEG, WebP
-   - Maximum file size: 5MB
-   - Valid file extension required
-4. **Console Errors**: Check browser console and server logs for detailed error messages
-5. **Restart Server**: After changing `.env`, restart the development server
+If you can't upload logo or letterhead files, follow these steps:
 
-**Common Errors:**
-- "signature verification failed" → Check that `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` match your project
-- "Bucket not found" → Create the "branding" bucket in Supabase Dashboard > Storage
-- "Missing Supabase credentials" → Verify environment variables are set correctly
+**Check Server Logs First** - The terminal will show detailed error messages with `[Branding Upload]` prefix.
+
+**Common Error Messages & Solutions:**
+
+1. **`SUPABASE_URL is not configured`**
+   - **Solution**: Add `SUPABASE_URL=your-url-here` to `.env` file
+   - Get your URL from Supabase Dashboard > Settings > API
+
+2. **`SUPABASE_SERVICE_ROLE_KEY is not configured`**
+   - **Solution**: Add `SUPABASE_SERVICE_ROLE_KEY=your-key-here` to `.env`
+   - Get your service role key from Supabase Dashboard > Settings > API
+   - **IMPORTANT**: Use the service_role key, NOT the anon key
+
+3. **`Storage bucket not found`**
+   - **Solution**: Create the "branding" bucket:
+     1. Go to Supabase Dashboard > Storage
+     2. Click "New Bucket"
+     3. Name it exactly "branding"
+     4. Set to Public or Private (both work - private uses signed URLs)
+     5. Click "Create bucket"
+
+4. **`Authentication failed` or `signature verification failed`**
+   - **Solution**: Verify credentials match your Supabase project:
+     1. Go to Supabase Dashboard > Settings > API
+     2. Copy the exact URL and service_role key
+     3. Update `.env` with these exact values
+     4. Restart the development server
+
+**File Requirements:**
+- Supported formats: PNG, JPEG, WebP only
+- Maximum file size: 5MB
+- Valid file extension required (.png, .jpg, .jpeg, .webp)
+
+**Debugging Steps:**
+1. Check server terminal for `[Branding Upload]` log messages
+2. Check browser console for `[Branding Frontend]` messages
+3. Verify file meets size and format requirements
+4. After fixing `.env`, always restart the development server
+5. Clear browser cache if images don't update
+
+**How Upload Works:**
+- Server-side processing using service role key (no RLS issues)
+- Returns signed URLs (works for public or private buckets)
+- Comprehensive error logging for easy troubleshooting
 
 ## License
 
