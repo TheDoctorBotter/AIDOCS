@@ -39,6 +39,10 @@ interface PageProps {
 }
 
 export default function PatientChartPage({ params }: PageProps) {
+  // Safely unwrap async params with null check
+  if (!params) {
+    throw new Error('Missing params');
+  }
   const resolvedParams = use(params);
   const episodeId = resolvedParams.episode_id;
 
