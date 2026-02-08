@@ -35,8 +35,9 @@ export async function GET(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Flatten patient data
-    const patient = data.patient as Record<string, unknown> | null;
+    // Flatten patient data - handle both array and object responses from Supabase
+    const patientData = data.patient as Record<string, unknown> | Record<string, unknown>[] | null;
+    const patient = Array.isArray(patientData) ? patientData[0] : patientData;
     const episode = {
       ...data,
       first_name: patient?.first_name,
