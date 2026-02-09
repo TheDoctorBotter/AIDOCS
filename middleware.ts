@@ -26,9 +26,15 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  // Check for session cookie
-  const supabaseToken = req.cookies.get('sb-access-token');
-  const hasSession = !!supabaseToken;
+  // Check for Supabase session cookies (multiple possible formats)
+  const cookies = req.cookies;
+  const hasSession =
+    cookies.get('sb-access-token') ||
+    cookies.get('supabase-auth-token') ||
+    // Check for project-specific cookie (format: sb-{project-ref}-auth-token)
+    Array.from(cookies.getAll()).some(cookie =>
+      cookie.name.startsWith('sb-') && cookie.name.includes('-auth-token')
+    );
 
   // If no session, redirect to sign-in
   if (!hasSession) {

@@ -23,12 +23,18 @@ export default function SignInPage() {
     setError(null);
 
     try {
+      // Test network connectivity first
+      console.log('Attempting sign in with:', { email, supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL });
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
+      console.log('Sign in response:', { data: !!data, error: error?.message });
+
       if (error) {
+        console.error('Supabase auth error:', error);
         setError(error.message);
         return;
       }
@@ -42,8 +48,13 @@ export default function SignInPage() {
           .eq('is_active', true)
           .limit(1);
 
+        console.log('Memberships check:', { memberships: !!memberships, error: membershipError?.message });
+
         if (membershipError) {
           console.error('Error checking memberships:', membershipError);
+          setError('Error checking account permissions. Please try again.');
+          await supabase.auth.signOut();
+          return;
         }
 
         if (!memberships || memberships.length === 0) {
@@ -53,12 +64,13 @@ export default function SignInPage() {
         }
 
         // Redirect to home
+        console.log('Sign in successful, redirecting...');
         router.push('/');
         router.refresh();
       }
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
-      console.error('Sign in error:', err);
+    } catch (err: any) {
+      console.error('Sign in exception:', err);
+      setError(`Network error: ${err.message || 'Please check your connection and try again.'}`);
     } finally {
       setLoading(false);
     }
