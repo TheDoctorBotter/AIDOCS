@@ -162,7 +162,7 @@ export default function ClinicSettingsPage() {
               </div>
             )}
 
-            {!activeClinic ? (
+            {!currentClinic ? (
               <div className="text-center py-8 text-slate-500">
                 <Building2 className="h-12 w-12 mx-auto mb-4 text-slate-300" />
                 <p className="mb-4">No clinic selected</p>
