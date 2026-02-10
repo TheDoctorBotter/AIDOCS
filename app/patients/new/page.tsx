@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -23,12 +23,12 @@ import {
 } from '@/components/ui/select';
 import { ArrowLeft, UserPlus, Loader2 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
-import { Clinic } from '@/lib/types';
+import { useAuth } from '@/lib/auth-context';
+import { ICD10CodeInput, type ICD10Code } from '@/components/ICD10CodeInput';
 
 export default function AddPatientPage() {
   const router = useRouter();
-  const [clinics, setClinics] = useState<Clinic[]>([]);
-  const [activeClinic, setActiveClinic] = useState<Clinic | null>(null);
+  const { currentClinic, loading: authLoading } = useAuth();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,28 +49,9 @@ export default function AddPatientPage() {
     frequency: '',
   });
 
-  useEffect(() => {
-    initializeApp();
-  }, []);
-
-  const initializeApp = async () => {
-    try {
-      const clinicsRes = await fetch('/api/clinics');
-      if (clinicsRes.ok) {
-        const clinicsData = await clinicsRes.json();
-        setClinics(clinicsData);
-        if (clinicsData.length > 0) {
-          setActiveClinic(clinicsData[0]);
-        }
-      }
-    } catch (error) {
-      console.error('Error initializing app:', error);
-    }
-  };
-
-  const handleClinicChange = (clinic: Clinic) => {
-    setActiveClinic(clinic);
-  };
+  // ICD-10 codes state
+  const [primaryDiagnosisCodes, setPrimaryDiagnosisCodes] = useState<ICD10Code[]>([]);
+  const [treatmentDiagnosisCodes, setTreatmentDiagnosisCodes] = useState<ICD10Code[]>([]);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -87,8 +68,8 @@ export default function AddPatientPage() {
     e.preventDefault();
     setError(null);
 
-    if (!activeClinic) {
-      setError('Please select a clinic first');
+    if (!currentClinic) {
+      setError('No active clinic selected. Please select a clinic from the top navigation.');
       return;
     }
 
@@ -105,7 +86,7 @@ export default function AddPatientPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clinic_id: activeClinic.id,
+          clinic_id: currentClinic.clinic_id,
           first_name: formData.first_name,
           last_name: formData.last_name,
           date_of_birth: formData.date_of_birth || null,
@@ -132,9 +113,11 @@ export default function AddPatientPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patient_id: patient.id,
-          clinic_id: activeClinic.id,
+          clinic_id: currentClinic.clinic_id,
           diagnosis: formData.episode_diagnosis || formData.primary_diagnosis || null,
           frequency: formData.frequency || null,
+          primary_diagnosis_codes: primaryDiagnosisCodes,
+          treatment_diagnosis_codes: treatmentDiagnosisCodes,
         }),
       });
 
@@ -155,13 +138,17 @@ export default function AddPatientPage() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
-      <TopNav
-        activeClinic={activeClinic}
-        clinics={clinics}
-        onClinicChange={handleClinicChange}
-      />
+      <TopNav />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
@@ -327,8 +314,8 @@ export default function AddPatientPage() {
               {/* Episode of Care */}
               <div>
                 <h3 className="font-medium text-slate-900 mb-4">Episode of Care</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2 md:col-span-2">
+                <div className="space-y-4">
+                  <div className="space-y-2">
                     <Label htmlFor="episode_diagnosis">Episode Diagnosis</Label>
                     <Input
                       id="episode_diagnosis"
@@ -338,6 +325,7 @@ export default function AddPatientPage() {
                       placeholder="Specific diagnosis for this episode (defaults to primary diagnosis)"
                     />
                   </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="frequency">Treatment Frequency</Label>
                     <Select
@@ -356,6 +344,28 @@ export default function AddPatientPage() {
                         <SelectItem value="PRN">PRN</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <ICD10CodeInput
+                      label="Primary Diagnosis ICD-10 Codes"
+                      description="Up to 5 ICD-10 codes for primary diagnosis"
+                      codes={primaryDiagnosisCodes}
+                      onChange={setPrimaryDiagnosisCodes}
+                      maxCodes={5}
+                      diagnosisText={formData.primary_diagnosis || formData.episode_diagnosis}
+                    />
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <ICD10CodeInput
+                      label="Treatment Diagnosis ICD-10 Codes"
+                      description="Up to 5 ICD-10 codes for treatment diagnosis"
+                      codes={treatmentDiagnosisCodes}
+                      onChange={setTreatmentDiagnosisCodes}
+                      maxCodes={5}
+                      diagnosisText={formData.episode_diagnosis || formData.primary_diagnosis}
+                    />
                   </div>
                 </div>
               </div>

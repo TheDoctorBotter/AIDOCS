@@ -11,9 +11,11 @@ import { Upload, Image as ImageIcon, FileText, Save, Loader2, ArrowLeft } from '
 import Link from 'next/link';
 import { BrandingSettings } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/lib/auth-context';
 
 export default function BrandingSettingsPage() {
   const { toast } = useToast();
+  const { currentClinic } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -35,15 +37,22 @@ export default function BrandingSettingsPage() {
   });
 
   useEffect(() => {
-    fetchSettings();
-  }, []);
+    if (currentClinic) {
+      fetchSettings();
+    }
+  }, [currentClinic]);
 
   const fetchSettings = async () => {
+    if (!currentClinic) return;
+
+    setLoading(true);
     try {
-      const response = await fetch('/api/branding');
+      const response = await fetch(`/api/branding?clinic_id=${currentClinic.clinic_id}`);
       if (response.ok) {
         const data = await response.json();
         setSettings(data);
+      } else {
+        throw new Error('Failed to fetch settings');
       }
     } catch (error) {
       console.error('Error fetching branding settings:', error);
@@ -132,12 +141,24 @@ export default function BrandingSettingsPage() {
   };
 
   const handleSave = async () => {
+    if (!currentClinic) {
+      toast({
+        title: 'Error',
+        description: 'No clinic selected',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       const response = await fetch('/api/branding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
+        body: JSON.stringify({
+          ...settings,
+          clinic_id: currentClinic.clinic_id,
+        }),
       });
 
       if (!response.ok) {
@@ -146,7 +167,7 @@ export default function BrandingSettingsPage() {
 
       toast({
         title: 'Success',
-        description: 'Branding settings saved successfully',
+        description: `Branding settings saved for ${currentClinic.clinic_name}`,
       });
     } catch (error) {
       console.error('Error saving settings:', error);
