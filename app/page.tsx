@@ -31,6 +31,26 @@ import { useAuth } from '@/lib/auth-context';
 
 export default function HomePage() {
   const { currentClinic, loading: authLoading } = useAuth();
+
+  console.log('Homepage render - currentClinic:', currentClinic);
+  console.log('Homepage render - authLoading:', authLoading);
+
+  // Temporarily simplified for debugging
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
+      <TopNav />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h1 className="text-3xl font-bold">Homepage Test</h1>
+        <p>Auth Loading: {authLoading ? 'true' : 'false'}</p>
+        <p>Current Clinic: {currentClinic?.clinic_name || 'null'}</p>
+      </main>
+    </div>
+  );
+}
+
+/* ORIGINAL CODE - Temporarily disabled
+export function HomePageOriginal() {
+  const { currentClinic, loading: authLoading } = useAuth();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [alerts, setAlerts] = useState<DocumentationAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -290,3 +310,4 @@ export default function HomePage() {
     </div>
   );
 }
+*/
