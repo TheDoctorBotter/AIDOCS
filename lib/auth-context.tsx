@@ -18,6 +18,29 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const ACTIVE_CLINIC_COOKIE = 'active_clinic_id';
+
+// Cookie helper functions
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
+
+function setCookie(name: string, value: string, days = 365) {
+  if (typeof document === 'undefined') return;
+  const expires = new Date();
+  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+}
+
+function deleteCookie(name: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [memberships, setMemberships] = useState<ClinicMembership[]>([]);
@@ -38,9 +61,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setMemberships(data || []);
 
-      // Set first clinic as current if not set
-      if (data && data.length > 0 && !currentClinic) {
-        setCurrentClinicState(data[0]);
+      // Try to restore previously selected clinic from cookie
+      const savedClinicId = getCookie(ACTIVE_CLINIC_COOKIE);
+      let clinicToSet: ClinicMembership | null = null;
+
+      if (savedClinicId && data) {
+        // Check if saved clinic is still in user's memberships
+        clinicToSet = data.find((m) => m.clinic_id === savedClinicId) || null;
+      }
+
+      // Fall back to first clinic if saved clinic not found
+      if (!clinicToSet && data && data.length > 0) {
+        clinicToSet = data[0];
+      }
+
+      if (clinicToSet) {
+        setCurrentClinicState(clinicToSet);
+        // Ensure cookie is set
+        setCookie(ACTIVE_CLINIC_COOKIE, clinicToSet.clinic_id);
       }
     } catch (error) {
       console.error('Error fetching memberships:', error);
@@ -85,10 +123,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setMemberships([]);
     setCurrentClinicState(null);
+    deleteCookie(ACTIVE_CLINIC_COOKIE);
   };
 
   const setCurrentClinic = (membership: ClinicMembership) => {
     setCurrentClinicState(membership);
+    // Persist to cookie
+    setCookie(ACTIVE_CLINIC_COOKIE, membership.clinic_id);
   };
 
   const hasRole = (roles: ClinicRole[]): boolean => {

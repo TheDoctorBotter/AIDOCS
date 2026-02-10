@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const clinicId = searchParams.get('clinic_id');
+
+    if (!clinicId) {
+      return NextResponse.json(
+        { error: 'clinic_id is required' },
+        { status: 400 }
+      );
+    }
+
     const { data, error } = await supabase
       .from('branding_settings')
       .select('*')
+      .eq('clinic_id', clinicId)
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -49,6 +60,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
+      clinic_id,
       clinic_name,
       address,
       phone,
@@ -63,9 +75,17 @@ export async function POST(request: NextRequest) {
       signature_enabled,
     } = body;
 
+    if (!clinic_id) {
+      return NextResponse.json(
+        { error: 'clinic_id is required' },
+        { status: 400 }
+      );
+    }
+
     const { data: existing } = await supabase
       .from('branding_settings')
       .select('id')
+      .eq('clinic_id', clinic_id)
       .limit(1)
       .maybeSingle();
 
@@ -75,6 +95,7 @@ export async function POST(request: NextRequest) {
       result = await supabase
         .from('branding_settings')
         .update({
+          clinic_id,
           clinic_name: clinic_name || '',
           address: address || '',
           phone: phone || '',
@@ -96,6 +117,7 @@ export async function POST(request: NextRequest) {
       result = await supabase
         .from('branding_settings')
         .insert({
+          clinic_id,
           clinic_name: clinic_name || '',
           address: address || '',
           phone: phone || '',

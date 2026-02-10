@@ -23,50 +23,27 @@ import {
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import {
-  Clinic,
   Episode,
   DocumentationAlert,
 } from '@/lib/types';
 import { format } from 'date-fns';
+import { useAuth } from '@/lib/auth-context';
 
 export default function HomePage() {
-  const [clinics, setClinics] = useState<Clinic[]>([]);
-  const [activeClinic, setActiveClinic] = useState<Clinic | null>(null);
+  const { currentClinic, loading: authLoading } = useAuth();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [alerts, setAlerts] = useState<DocumentationAlert[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    initializeApp();
-  }, []);
-
-  useEffect(() => {
-    if (activeClinic) {
-      fetchCaseload(activeClinic.id);
-      fetchAlerts(activeClinic.id);
+    if (currentClinic) {
+      fetchCaseload(currentClinic.clinic_id);
+      fetchAlerts(currentClinic.clinic_id);
     }
-  }, [activeClinic]);
-
-  const initializeApp = async () => {
-    setLoading(true);
-    try {
-      // Fetch clinics
-      const clinicsRes = await fetch('/api/clinics');
-      if (clinicsRes.ok) {
-        const clinicsData = await clinicsRes.json();
-        setClinics(clinicsData);
-        if (clinicsData.length > 0) {
-          setActiveClinic(clinicsData[0]);
-        }
-      }
-    } catch (error) {
-      console.error('Error initializing app:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [currentClinic]);
 
   const fetchCaseload = async (clinicId: string) => {
+    setLoading(true);
     try {
       const res = await fetch(`/api/episodes?clinic_id=${clinicId}&status=active`);
       if (res.ok) {
@@ -75,6 +52,8 @@ export default function HomePage() {
       }
     } catch (error) {
       console.error('Error fetching caseload:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -89,10 +68,6 @@ export default function HomePage() {
       console.error('Error fetching alerts:', error);
       setAlerts([]);
     }
-  };
-
-  const handleClinicChange = (clinic: Clinic) => {
-    setActiveClinic(clinic);
   };
 
   const calculateAge = (dob: string | null | undefined): string => {
@@ -122,13 +97,23 @@ export default function HomePage() {
     }
   };
 
+  if (authLoading || !currentClinic) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
+        <TopNav />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="space-y-6">
+            <Skeleton className="h-48 w-full" />
+            <Skeleton className="h-96 w-full" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
-      <TopNav
-        activeClinic={activeClinic}
-        clinics={clinics}
-        onClinicChange={handleClinicChange}
-      />
+      <TopNav />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
@@ -137,11 +122,9 @@ export default function HomePage() {
           <p className="text-slate-600 mt-1">
             Secure clinical documentation and patient chart management
           </p>
-          {activeClinic && (
-            <p className="text-sm text-emerald-600 mt-2 font-medium">
-              {activeClinic.name}
-            </p>
-          )}
+          <p className="text-sm text-emerald-600 mt-2 font-medium">
+            {currentClinic.clinic_name}
+          </p>
         </div>
 
         {loading ? (
@@ -149,26 +132,6 @@ export default function HomePage() {
             <Skeleton className="h-48 w-full" />
             <Skeleton className="h-96 w-full" />
           </div>
-        ) : clinics.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="py-12 text-center">
-              <Stethoscope className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-700 mb-2">
-                Welcome to Buckeye EMR
-              </h3>
-              <p className="text-slate-500 mb-6 max-w-md mx-auto">
-                Get started by setting up your clinic and adding your first patient.
-              </p>
-              <div className="flex gap-3 justify-center">
-                <Link href="/settings">
-                  <Button>Set Up Clinic</Button>
-                </Link>
-                <Button variant="outline" onClick={seedDemoData}>
-                  Seed Demo Data
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         ) : (
           <div className="space-y-6">
             {/* Alerts Box */}

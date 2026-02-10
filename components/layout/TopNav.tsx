@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -13,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 import {
   Home,
   Settings,
@@ -25,16 +25,9 @@ import {
   UserCog,
   Briefcase,
 } from 'lucide-react';
-import { Clinic } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 
-interface TopNavProps {
-  activeClinic?: Clinic | null;
-  clinics?: Clinic[];
-  onClinicChange?: (clinic: Clinic) => void;
-}
-
-export function TopNav({ activeClinic, clinics = [], onClinicChange }: TopNavProps) {
+export function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, currentClinic, memberships, signOut, setCurrentClinic } = useAuth();
@@ -94,6 +87,13 @@ export function TopNav({ activeClinic, clinics = [], onClinicChange }: TopNavPro
     }
   };
 
+  const handleClinicSwitch = (membership: typeof memberships[0]) => {
+    setCurrentClinic(membership);
+    toast.success(`Switched to ${membership.clinic_name}`, {
+      description: `You are now viewing ${membership.clinic_name} as ${getRoleLabel(membership.role)}`,
+    });
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -134,29 +134,39 @@ export function TopNav({ activeClinic, clinics = [], onClinicChange }: TopNavPro
 
           {/* Right side - Clinic Switcher and Account */}
           <div className="flex items-center gap-3">
-            {/* Clinic Switcher */}
-            {clinics.length > 0 && (
+            {/* Clinic Switcher (if user has multiple clinics) */}
+            {memberships.length > 1 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2">
                     <Building2 className="h-4 w-4" />
                     <span className="hidden sm:inline max-w-[150px] truncate">
-                      {activeClinic?.name || 'Select Clinic'}
+                      {currentClinic?.clinic_name || 'Select Clinic'}
                     </span>
                     <ChevronDown className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuContent align="end" className="w-64">
                   <DropdownMenuLabel>Switch Clinic</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {clinics.map((clinic) => (
+                  {memberships.map((membership) => (
                     <DropdownMenuItem
-                      key={clinic.id}
-                      onClick={() => onClinicChange?.(clinic)}
-                      className={activeClinic?.id === clinic.id ? 'bg-slate-100' : ''}
+                      key={membership.id}
+                      onClick={() => handleClinicSwitch(membership)}
+                      className={currentClinic?.id === membership.id ? 'bg-slate-100' : ''}
                     >
-                      <Building2 className="mr-2 h-4 w-4" />
-                      {clinic.name}
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4" />
+                          <span>{membership.clinic_name}</span>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${getRoleBadgeColor(membership.role)}`}
+                        >
+                          {getRoleLabel(membership.role)}
+                        </Badge>
+                      </div>
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -208,7 +218,7 @@ export function TopNav({ activeClinic, clinics = [], onClinicChange }: TopNavPro
                     {memberships.map((membership) => (
                       <DropdownMenuItem
                         key={membership.id}
-                        onClick={() => setCurrentClinic(membership)}
+                        onClick={() => handleClinicSwitch(membership)}
                         className={currentClinic?.id === membership.id ? 'bg-slate-100' : ''}
                       >
                         <div className="flex items-center justify-between w-full">
