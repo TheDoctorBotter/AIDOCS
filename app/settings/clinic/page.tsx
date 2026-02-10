@@ -17,7 +17,7 @@ import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 
 export default function ClinicSettingsPage() {
-  const { currentClinic } = useAuth();
+  const { currentClinic, memberships } = useAuth();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -242,7 +242,7 @@ export default function ClinicSettingsPage() {
         </Card>
 
         {/* Clinic List */}
-        {clinics.length > 1 && (
+        {memberships.length > 1 && (
           <Card className="mt-6">
             <CardHeader>
               <CardTitle className="text-base">All Clinics</CardTitle>
@@ -252,22 +252,20 @@ export default function ClinicSettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {clinics.map((clinic) => (
+                {memberships.map((membership) => (
                   <div
-                    key={clinic.id}
+                    key={membership.clinic_id}
                     className={`flex items-center justify-between p-3 border rounded-lg ${
-                      activeClinic?.id === clinic.id
+                      currentClinic?.clinic_id === membership.clinic_id
                         ? 'border-emerald-200 bg-emerald-50'
                         : ''
                     }`}
                   >
                     <div>
-                      <p className="font-medium">{clinic.name}</p>
-                      {clinic.address && (
-                        <p className="text-sm text-slate-500">{clinic.address}</p>
-                      )}
+                      <p className="font-medium">{membership.clinic_name}</p>
+                      <p className="text-sm text-slate-500 capitalize">{membership.role}</p>
                     </div>
-                    {activeClinic?.id === clinic.id && (
+                    {currentClinic?.clinic_id === membership.clinic_id && (
                       <span className="text-xs text-emerald-600 font-medium">
                         Currently Editing
                       </span>
