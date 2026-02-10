@@ -25,6 +25,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
+import { DeletePatientDialog } from '@/components/DeletePatientDialog';
 import {
   Clinic,
   Episode,
@@ -213,18 +214,26 @@ export default function PatientChartPage({ params }: PageProps) {
                       )}
                     </CardDescription>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={
-                      episode.status === 'active'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : episode.status === 'on_hold'
-                        ? 'bg-amber-50 text-amber-700 border-amber-200'
-                        : 'bg-slate-50 text-slate-700 border-slate-200'
-                    }
-                  >
-                    {episode.status.charAt(0).toUpperCase() + episode.status.slice(1)}
-                  </Badge>
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      variant="outline"
+                      className={
+                        episode.status === 'active'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : episode.status === 'on_hold'
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-slate-50 text-slate-700 border-slate-200'
+                      }
+                    >
+                      {episode.status.charAt(0).toUpperCase() + episode.status.slice(1)}
+                    </Badge>
+                    {episode.patient_id && (
+                      <DeletePatientDialog
+                        patientId={episode.patient_id}
+                        patientName={`${episode.first_name} ${episode.last_name}`}
+                      />
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
