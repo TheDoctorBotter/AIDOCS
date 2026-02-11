@@ -7,12 +7,20 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const limit = searchParams.get('limit') || '50';
+    const clinicId = searchParams.get('clinic_id');
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('notes')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(parseInt(limit));
+
+    // Scope to clinic when provided
+    if (clinicId) {
+      query = query.eq('clinic_id', clinicId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching notes:', error);
@@ -54,6 +62,7 @@ export async function POST(request: NextRequest) {
         billing_justification: body.billing_justification,
         hep_summary: body.hep_summary,
         template_id: body.template_id,
+        clinic_id: body.clinic_id || null,
       })
       .select()
       .single();

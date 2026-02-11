@@ -17,7 +17,7 @@ import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 
 export default function ClinicSettingsPage() {
-  const { currentClinic, memberships } = useAuth();
+  const { user, currentClinic, memberships, setCurrentClinic } = useAuth();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -99,11 +99,29 @@ export default function ClinicSettingsPage() {
       const res = await fetch('/api/clinics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, user_id: user?.id }),
       });
 
       if (res.ok) {
-        setMessage({ type: 'success', text: 'Clinic created successfully. Use the clinic switcher to select it.' });
+        const newClinic = await res.json();
+
+        // Build a membership object and switch to the new clinic
+        const newMembership = {
+          id: '',
+          user_id: user?.id || '',
+          clinic_id: newClinic.id,
+          clinic_id_ref: newClinic.id,
+          clinic_name: newClinic.name,
+          role: 'admin' as const,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        setCurrentClinic(newMembership);
+        setMessage({ type: 'success', text: `"${newClinic.name}" created! You are now editing it.` });
+
+        // Reload page so memberships refresh from database
+        setTimeout(() => window.location.reload(), 1000);
       } else {
         const error = await res.json();
         setMessage({ type: 'error', text: error.error || 'Failed to create clinic' });

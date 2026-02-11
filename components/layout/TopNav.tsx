@@ -24,6 +24,7 @@ import {
   Stethoscope,
   UserCog,
   Briefcase,
+  Plus,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -134,8 +135,8 @@ export function TopNav() {
 
           {/* Right side - Clinic Switcher and Account */}
           <div className="flex items-center gap-3">
-            {/* Clinic Switcher (if user has multiple clinics) */}
-            {memberships.length > 1 && (
+            {/* Clinic Switcher - always visible */}
+            {user && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2">
@@ -169,6 +170,13 @@ export function TopNav() {
                       </div>
                     </DropdownMenuItem>
                   ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings/clinic">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Clinic
+                    </Link>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -209,7 +217,7 @@ export function TopNav() {
                   </div>
                 </DropdownMenuLabel>
 
-                {memberships.length > 1 && (
+                {memberships.length > 0 && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuLabel className="text-xs text-slate-500 font-normal">
@@ -235,6 +243,13 @@ export function TopNav() {
                         </div>
                       </DropdownMenuItem>
                     ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/settings/clinic">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Clinic
+                      </Link>
+                    </DropdownMenuItem>
                   </>
                 )}
 

@@ -37,12 +37,13 @@ export async function POST(request: NextRequest) {
     const client = serviceRoleKey ? supabaseAdmin : supabase;
 
     const body = await request.json();
-    const { name, address, phone, email, website } = body;
+    const { name, address, phone, email, website, user_id } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'Clinic name is required' }, { status: 400 });
     }
 
+    // Create the clinic
     const { data, error } = await client
       .from('clinics')
       .insert({
@@ -58,6 +59,24 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error creating clinic:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Create a membership linking the current user as admin of the new clinic
+    if (user_id && data) {
+      const { error: membershipError } = await client
+        .from('clinic_memberships')
+        .insert({
+          user_id,
+          clinic_id: data.id,
+          clinic_id_ref: data.id,
+          clinic_name: data.name,
+          role: 'admin',
+          is_active: true,
+        });
+
+      if (membershipError) {
+        console.error('Error creating clinic membership:', membershipError);
+      }
     }
 
     return NextResponse.json(data, { status: 201 });

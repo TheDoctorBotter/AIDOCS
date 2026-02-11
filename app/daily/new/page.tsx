@@ -251,6 +251,7 @@ function DailySoapNoteContent() {
           billing_justification: null,
           hep_summary: null,
           template_id: template.id,
+          clinic_id: currentClinic?.clinic_id || null,
         }),
       });
 

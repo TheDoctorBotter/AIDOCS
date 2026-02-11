@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { NoteInputData, Template, Intervention } from '@/lib/types';
+import { useAuth } from '@/lib/auth-context';
 import DateOfServiceForm from '@/components/note-wizard/DateOfServiceForm';
 import PatientDemographicForm from '@/components/note-wizard/PatientDemographicForm';
 import SubjectiveForm from '@/components/note-wizard/SubjectiveForm';
@@ -18,6 +19,7 @@ import PlanForm from '@/components/note-wizard/PlanForm';
 
 export default function PtEvaluationNotePage() {
   const router = useRouter();
+  const { currentClinic } = useAuth();
   const [inputData, setInputData] = useState<NoteInputData>({});
   const [template, setTemplate] = useState<Template | null>(null);
   const [interventions, setInterventions] = useState<Intervention[]>([]);
@@ -116,6 +118,7 @@ export default function PtEvaluationNotePage() {
           billing_justification: generated.billing_justification,
           hep_summary: generated.hep_summary,
           template_id: template.id,
+          clinic_id: currentClinic?.clinic_id || null,
         }),
       });
 
