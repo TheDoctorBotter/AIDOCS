@@ -260,7 +260,19 @@ export async function generateNotePDF({
 
     const dateOfService = note.date_of_service || note.input_data?.dateOfService;
     if (dateOfService) {
-      doc.text(`Date of Service: ${format(new Date(dateOfService), 'MMMM d, yyyy')}`, margin, yPosition);
+      let dateText = `Date of Service: ${format(new Date(dateOfService), 'MMMM d, yyyy')}`;
+      if (note.input_data?.startTime && note.input_data?.endTime) {
+        dateText += `    ${note.input_data.startTime} - ${note.input_data.endTime}`;
+        const [sH, sM] = note.input_data.startTime.split(':').map(Number);
+        const [eH, eM] = note.input_data.endTime.split(':').map(Number);
+        const diff = (eH * 60 + eM) - (sH * 60 + sM);
+        if (diff > 0) {
+          const h = Math.floor(diff / 60);
+          const m = diff % 60;
+          dateText += `  (${h > 0 ? `${h}h ` : ''}${m}m)`;
+        }
+      }
+      doc.text(dateText, margin, yPosition);
       yPosition += 5;
     }
 
@@ -328,7 +340,8 @@ export async function generateNotePDF({
       });
     });
 
-    if (note.billing_justification) {
+    // Only include billing/HEP sections for non-daily notes (evaluations, progress notes, etc.)
+    if (note.billing_justification && note.note_type !== 'daily_soap') {
       yPosition += 5;
       if (yPosition > pageHeight - margin - 20) {
         doc.addPage();
@@ -359,7 +372,7 @@ export async function generateNotePDF({
       });
     }
 
-    if (note.hep_summary) {
+    if (note.hep_summary && note.note_type !== 'daily_soap') {
       yPosition += 5;
       if (yPosition > pageHeight - margin - 20) {
         doc.addPage();
@@ -738,7 +751,19 @@ export async function generateRichNotePDF({
 
     const dateOfService = note.date_of_service || note.input_data?.dateOfService;
     if (dateOfService) {
-      doc.text(`Date of Service: ${format(new Date(dateOfService), 'MMMM d, yyyy')}`, margin, yPosition);
+      let dateText = `Date of Service: ${format(new Date(dateOfService), 'MMMM d, yyyy')}`;
+      if (note.input_data?.startTime && note.input_data?.endTime) {
+        dateText += `    ${note.input_data.startTime} - ${note.input_data.endTime}`;
+        const [sH, sM] = note.input_data.startTime.split(':').map(Number);
+        const [eH, eM] = note.input_data.endTime.split(':').map(Number);
+        const diff = (eH * 60 + eM) - (sH * 60 + sM);
+        if (diff > 0) {
+          const h = Math.floor(diff / 60);
+          const m = diff % 60;
+          dateText += `  (${h > 0 ? `${h}h ` : ''}${m}m)`;
+        }
+      }
+      doc.text(dateText, margin, yPosition);
       yPosition += 5;
     }
 
@@ -793,8 +818,8 @@ export async function generateRichNotePDF({
       yPosition
     );
 
-    // Billing justification
-    if (richContent.billingJustification) {
+    // Only include billing/HEP sections for non-daily notes (evaluations, progress notes, etc.)
+    if (richContent.billingJustification && note.note_type !== 'daily_soap') {
       yPosition += 5;
       if (yPosition > pageHeight - margin - 20) {
         doc.addPage();
@@ -821,8 +846,7 @@ export async function generateRichNotePDF({
       );
     }
 
-    // HEP Summary
-    if (richContent.hepSummary) {
+    if (richContent.hepSummary && note.note_type !== 'daily_soap') {
       yPosition += 5;
       if (yPosition > pageHeight - margin - 20) {
         doc.addPage();
