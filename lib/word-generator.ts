@@ -465,11 +465,23 @@ function createMetadataParagraphs(
 
   const dateOfService = note.date_of_service || note.input_data?.dateOfService;
   if (dateOfService) {
+    let dateText = `Date of Service: ${format(new Date(dateOfService), 'MMMM d, yyyy')}`;
+    if (note.input_data?.startTime && note.input_data?.endTime) {
+      dateText += `    ${note.input_data.startTime} - ${note.input_data.endTime}`;
+      const [sH, sM] = note.input_data.startTime.split(':').map(Number);
+      const [eH, eM] = note.input_data.endTime.split(':').map(Number);
+      const diff = (eH * 60 + eM) - (sH * 60 + sM);
+      if (diff > 0) {
+        const h = Math.floor(diff / 60);
+        const m = diff % 60;
+        dateText += `  (${h > 0 ? `${h}h ` : ''}${m}m)`;
+      }
+    }
     paragraphs.push(
       new Paragraph({
         children: [
           new TextRun({
-            text: `Date of Service: ${format(new Date(dateOfService), 'MMMM d, yyyy')}`,
+            text: dateText,
             size: ptToHalfPt(10),
             font: settings.fontFamily,
             color: '64748B', // Slate gray
@@ -674,8 +686,8 @@ export async function generateNoteWord({
     ...convertRichDocumentToParagraphs(richContent.document, settings, 'ordered-list')
   );
 
-  // Billing justification
-  if (richContent.billingJustification) {
+  // Only include billing/HEP sections for non-daily notes (evaluations, progress notes, etc.)
+  if (richContent.billingJustification && note.note_type !== 'daily_soap') {
     children.push(
       ...createSectionParagraphs(
         'BILLING/SKILLED JUSTIFICATION',
@@ -686,8 +698,7 @@ export async function generateNoteWord({
     );
   }
 
-  // HEP Summary
-  if (richContent.hepSummary) {
+  if (richContent.hepSummary && note.note_type !== 'daily_soap') {
     children.push(
       ...createSectionParagraphs('HEP SUMMARY', richContent.hepSummary, settings, 'ordered-list')
     );
@@ -840,7 +851,7 @@ export async function generateNoteWordBlob({
     ...convertRichDocumentToParagraphs(richContent.document, settings, 'ordered-list')
   );
 
-  if (richContent.billingJustification) {
+  if (richContent.billingJustification && note.note_type !== 'daily_soap') {
     children.push(
       ...createSectionParagraphs(
         'BILLING/SKILLED JUSTIFICATION',
@@ -851,7 +862,7 @@ export async function generateNoteWordBlob({
     );
   }
 
-  if (richContent.hepSummary) {
+  if (richContent.hepSummary && note.note_type !== 'daily_soap') {
     children.push(
       ...createSectionParagraphs('HEP SUMMARY', richContent.hepSummary, settings, 'ordered-list')
     );

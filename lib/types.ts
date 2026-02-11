@@ -99,6 +99,8 @@ export interface RequiredSections {
 
 export interface NoteInputData {
   dateOfService?: string;
+  startTime?: string;
+  endTime?: string;
   patientDemographic?: {
     patientName?: string;
     dateOfBirth?: string;

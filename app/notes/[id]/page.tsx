@@ -397,6 +397,20 @@ export default function NoteDetailPage() {
                     new Date(note.date_of_service || note.input_data.dateOfService!),
                     'MMMM d, yyyy'
                   )}
+                  {note.input_data?.startTime && note.input_data?.endTime && (
+                    <span className="ml-3">
+                      {note.input_data.startTime} - {note.input_data.endTime}
+                      {(() => {
+                        const [sH, sM] = note.input_data.startTime!.split(':').map(Number);
+                        const [eH, eM] = note.input_data.endTime!.split(':').map(Number);
+                        const diff = (eH * 60 + eM) - (sH * 60 + sM);
+                        if (diff <= 0) return null;
+                        const h = Math.floor(diff / 60);
+                        const m = diff % 60;
+                        return <span className="ml-2 text-slate-500">({h > 0 ? `${h}h ` : ''}{m}m)</span>;
+                      })()}
+                    </span>
+                  )}
                 </p>
               )}
               <p className="text-sm">
@@ -607,7 +621,7 @@ export default function NoteDetailPage() {
           </CardContent>
         </Card>
 
-        {note.billing_justification && (
+        {note.billing_justification && note.note_type !== 'daily_soap' && (
           <Card className="mb-6 border-blue-200">
             <CardHeader>
               <CardTitle className="text-lg">
@@ -629,7 +643,7 @@ export default function NoteDetailPage() {
           </Card>
         )}
 
-        {note.hep_summary && (
+        {note.hep_summary && note.note_type !== 'daily_soap' && (
           <Card className="mb-6 border-green-200">
             <CardHeader>
               <CardTitle className="text-lg">HEP Summary</CardTitle>

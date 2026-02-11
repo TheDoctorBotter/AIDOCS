@@ -234,8 +234,8 @@ function DailySoapNoteContent() {
           note_type: 'daily_soap',
           input_data: inputData,
           output_text: generated.note,
-          billing_justification: generated.billing_justification,
-          hep_summary: generated.hep_summary,
+          billing_justification: null,
+          hep_summary: null,
           template_id: template.id,
         }),
       });
@@ -265,8 +265,8 @@ function DailySoapNoteContent() {
               date_of_service: inputData.dateOfService || new Date().toISOString().split('T')[0],
               input_data: inputData,
               output_text: generated.note,
-              billing_justification: generated.billing_justification,
-              hep_summary: generated.hep_summary,
+              billing_justification: null,
+              hep_summary: null,
               template_id: template.id,
               legacy_note_id: savedNote.id,
             }),
@@ -353,7 +353,11 @@ function DailySoapNoteContent() {
         <div className="space-y-6">
           <DateOfServiceForm
             value={inputData.dateOfService}
+            startTime={inputData.startTime}
+            endTime={inputData.endTime}
             onChange={(value) => setInputData((prev) => ({ ...prev, dateOfService: value }))}
+            onStartTimeChange={(value) => setInputData((prev) => ({ ...prev, startTime: value }))}
+            onEndTimeChange={(value) => setInputData((prev) => ({ ...prev, endTime: value }))}
           />
 
           <PatientDemographicForm

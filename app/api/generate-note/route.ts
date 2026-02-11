@@ -242,9 +242,11 @@ OUTPUT FORMAT:
 Return your response in the following JSON format:
 {
   "note": "The complete formatted note",
-  "billing_justification": "2-3 sentences justifying skilled PT services (if applicable)",
-  "hep_summary": "1-2 sentences summarizing home exercise program (if applicable)"
+  "billing_justification": "2-3 sentences justifying skilled PT services (only for evaluations and progress notes, NOT daily notes)",
+  "hep_summary": "1-2 sentences summarizing home exercise program (only for evaluations and progress notes, NOT daily notes)"
 }
+
+For daily SOAP notes: Do NOT include billing_justification or hep_summary. Set them to empty strings. These sections are addressed in progress updates and evaluations only.
 
 Remember: Clinical accuracy and safety are paramount. Never fabricate clinical data.`;
 }
