@@ -381,11 +381,109 @@ function buildUserPrompt(
   return prompt;
 }
 
+/**
+ * Strip a SOAP header from the beginning of a section value, in case the AI
+ * included it despite instructions (e.g. "SUBJECTIVE:\nPatient reports...").
+ */
+function stripSectionHeader(value: string, header: string): string {
+  const pattern = new RegExp(`^\\s*${header}\\s*:\\s*\\n?`, 'i');
+  return value.replace(pattern, '').trim();
+}
+
+/**
+ * Try to split a flat note string into SOAP sections by finding header-like
+ * lines. Returns an object with preamble + sections, or null if we can't find
+ * at least the SUBJECTIVE header.
+ */
+function splitNoteIntoSections(note: string): {
+  preamble: string;
+  subjective: string;
+  objective: string;
+  assessment: string;
+  plan: string;
+} | null {
+  // Match headers like "SUBJECTIVE:", "Subjective:", "**SUBJECTIVE**:", "S:", etc.
+  const headerPattern = /^(?:\*{0,2})(SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN(?:\s+OF\s+CARE)?)(?:\*{0,2})\s*:/gim;
+
+  const matches: { header: string; index: number }[] = [];
+  let match;
+  while ((match = headerPattern.exec(note)) !== null) {
+    matches.push({ header: match[1].toUpperCase(), index: match.index });
+  }
+
+  // Need at least SUBJECTIVE to consider this parseable
+  if (!matches.some((m) => m.header === 'SUBJECTIVE')) {
+    return null;
+  }
+
+  const result = { preamble: '', subjective: '', objective: '', assessment: '', plan: '' };
+
+  // Everything before the first header is preamble
+  result.preamble = note.slice(0, matches[0].index).trim();
+
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index;
+    const end = i + 1 < matches.length ? matches[i + 1].index : note.length;
+    const sectionText = note.slice(start, end);
+    // Remove the header line itself from the content
+    const contentOnly = sectionText.replace(/^.*?:\s*\n?/, '').trim();
+
+    const h = matches[i].header;
+    if (h === 'SUBJECTIVE') result.subjective = contentOnly;
+    else if (h === 'OBJECTIVE') result.objective = contentOnly;
+    else if (h === 'ASSESSMENT') result.assessment = contentOnly;
+    else if (h.startsWith('PLAN')) result.plan = contentOnly;
+  }
+
+  return result;
+}
+
+/**
+ * Final safety net: ensure the note contains all four SOAP headers.
+ * If they're missing, inject them.
+ */
+function ensureSoapHeaders(note: string): string {
+  const hasSubjective = /^SUBJECTIVE\s*:/m.test(note);
+  const hasObjective = /^OBJECTIVE\s*:/m.test(note);
+  const hasAssessment = /^ASSESSMENT\s*:/m.test(note);
+  const hasPlan = /^PLAN\s*:/m.test(note);
+
+  if (hasSubjective && hasObjective && hasAssessment && hasPlan) {
+    return note;
+  }
+
+  // Try to find headers with flexible casing and normalize them
+  const parsed = splitNoteIntoSections(note);
+  if (parsed) {
+    const sections: string[] = [];
+    if (parsed.preamble) sections.push(parsed.preamble);
+    sections.push(`SUBJECTIVE:\n${parsed.subjective || 'Not provided.'}`);
+    sections.push(`OBJECTIVE:\n${parsed.objective || 'Not provided.'}`);
+    sections.push(`ASSESSMENT:\n${parsed.assessment || 'Not provided.'}`);
+    sections.push(`PLAN:\n${parsed.plan || 'Not provided.'}`);
+    return sections.join('\n\n');
+  }
+
+  // Could not parse sections at all — wrap the entire note under SUBJECTIVE
+  // and add empty stubs for the rest so headers always appear
+  const sections: string[] = [];
+  sections.push(`SUBJECTIVE:\n${note.trim()}`);
+  sections.push('OBJECTIVE:\nNot assessed today.');
+  sections.push('ASSESSMENT:\nNot assessed today.');
+  sections.push('PLAN:\nNot assessed today.');
+  console.warn('[Generate Note] Could not detect SOAP sections in AI output — injected default headers.');
+  return sections.join('\n\n');
+}
+
 function parseGeneratedOutput(text: string): {
   note: string;
   billing_justification: string;
   hep_summary: string;
 } {
+  let note = '';
+  let billing_justification = '';
+  let hep_summary = '';
+
   try {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -396,46 +494,33 @@ function parseGeneratedOutput(text: string): {
         const sections: string[] = [];
 
         if (parsed.preamble) {
-          sections.push(parsed.preamble.trim());
+          sections.push(stripSectionHeader(parsed.preamble, 'PREAMBLE'));
         }
 
-        if (parsed.subjective) {
-          sections.push(`SUBJECTIVE:\n${parsed.subjective.trim()}`);
-        }
+        sections.push(`SUBJECTIVE:\n${stripSectionHeader(parsed.subjective || 'Not provided.', 'SUBJECTIVE')}`);
+        sections.push(`OBJECTIVE:\n${stripSectionHeader(parsed.objective || 'Not provided.', 'OBJECTIVE')}`);
+        sections.push(`ASSESSMENT:\n${stripSectionHeader(parsed.assessment || 'Not provided.', 'ASSESSMENT')}`);
+        sections.push(`PLAN:\n${stripSectionHeader(parsed.plan || 'Not provided.', 'PLAN')}`);
 
-        if (parsed.objective) {
-          sections.push(`OBJECTIVE:\n${parsed.objective.trim()}`);
-        }
-
-        if (parsed.assessment) {
-          sections.push(`ASSESSMENT:\n${parsed.assessment.trim()}`);
-        }
-
-        if (parsed.plan) {
-          sections.push(`PLAN:\n${parsed.plan.trim()}`);
-        }
-
-        return {
-          note: sections.join('\n\n'),
-          billing_justification: parsed.billing_justification || '',
-          hep_summary: parsed.hep_summary || '',
-        };
+        note = sections.join('\n\n');
+        billing_justification = parsed.billing_justification || '';
+        hep_summary = parsed.hep_summary || '';
+      } else {
+        // Fallback: AI returned a single "note" field
+        note = parsed.note || text;
+        billing_justification = parsed.billing_justification || '';
+        hep_summary = parsed.hep_summary || '';
       }
-
-      // Fallback: if the AI returned a single "note" field (legacy format)
-      return {
-        note: parsed.note || text,
-        billing_justification: parsed.billing_justification || '',
-        hep_summary: parsed.hep_summary || '',
-      };
+    } else {
+      note = text;
     }
   } catch (e) {
     console.error('Failed to parse JSON from response:', e);
+    note = text;
   }
 
-  return {
-    note: text,
-    billing_justification: '',
-    hep_summary: '',
-  };
+  // SAFETY NET: Always ensure SOAP headers are present in the final note
+  note = ensureSoapHeaders(note);
+
+  return { note, billing_justification, hep_summary };
 }
