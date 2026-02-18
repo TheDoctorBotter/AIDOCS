@@ -122,7 +122,7 @@ USING (
     SELECT cm.clinic_id_ref FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid() AND cm.is_active = true
     UNION
-    SELECT cm.clinic_id::uuid FROM clinic_memberships cm
+    SELECT cm.clinic_id FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid() AND cm.is_active = true AND cm.clinic_id IS NOT NULL
   )
 );
@@ -136,7 +136,7 @@ WITH CHECK (
     SELECT cm.clinic_id_ref FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid() AND cm.is_active = true
     UNION
-    SELECT cm.clinic_id::uuid FROM clinic_memberships cm
+    SELECT cm.clinic_id FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid() AND cm.is_active = true AND cm.clinic_id IS NOT NULL
   )
 );
@@ -150,7 +150,7 @@ USING (
     SELECT cm.clinic_id_ref FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid() AND cm.is_active = true
     UNION
-    SELECT cm.clinic_id::uuid FROM clinic_memberships cm
+    SELECT cm.clinic_id FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid() AND cm.is_active = true AND cm.clinic_id IS NOT NULL
   )
 );
@@ -162,7 +162,7 @@ USING (
   EXISTS (
     SELECT 1 FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid()
-      AND (cm.clinic_id_ref = notes.clinic_id OR cm.clinic_id = notes.clinic_id::text)
+      AND (cm.clinic_id_ref = notes.clinic_id OR cm.clinic_id = notes.clinic_id)
       AND cm.role = 'admin'
       AND cm.is_active = true
   )
@@ -365,7 +365,7 @@ USING (
     SELECT 1 FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid()
       AND (cm.clinic_id_ref = document_templates.clinic_id
-           OR cm.clinic_id = document_templates.clinic_id::text)
+           OR cm.clinic_id = document_templates.clinic_id)
       AND cm.is_active = true
   )
 );
@@ -378,7 +378,7 @@ WITH CHECK (
     SELECT 1 FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid()
       AND (cm.clinic_id_ref = document_templates.clinic_id
-           OR cm.clinic_id = document_templates.clinic_id::text)
+           OR cm.clinic_id = document_templates.clinic_id)
       AND cm.role = 'admin'
       AND cm.is_active = true
   )
@@ -392,7 +392,7 @@ USING (
     SELECT 1 FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid()
       AND (cm.clinic_id_ref = document_templates.clinic_id
-           OR cm.clinic_id = document_templates.clinic_id::text)
+           OR cm.clinic_id = document_templates.clinic_id)
       AND cm.role = 'admin'
       AND cm.is_active = true
   )
@@ -406,7 +406,7 @@ USING (
     SELECT 1 FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid()
       AND (cm.clinic_id_ref = document_templates.clinic_id
-           OR cm.clinic_id = document_templates.clinic_id::text)
+           OR cm.clinic_id = document_templates.clinic_id)
       AND cm.role = 'admin'
       AND cm.is_active = true
   )
@@ -443,7 +443,7 @@ DO $$ BEGIN
           SELECT cm.clinic_id_ref FROM clinic_memberships cm
           WHERE cm.user_id = auth.uid() AND cm.is_active = true
           UNION
-          SELECT cm.clinic_id::uuid FROM clinic_memberships cm
+          SELECT cm.clinic_id FROM clinic_memberships cm
           WHERE cm.user_id = auth.uid() AND cm.is_active = true AND cm.clinic_id IS NOT NULL
         )
       )
@@ -463,7 +463,7 @@ DO $$ BEGIN
           SELECT cm.clinic_id_ref FROM clinic_memberships cm
           WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true
           UNION
-          SELECT cm.clinic_id::uuid FROM clinic_memberships cm
+          SELECT cm.clinic_id FROM clinic_memberships cm
           WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true AND cm.clinic_id IS NOT NULL
         )
       )
@@ -483,7 +483,7 @@ DO $$ BEGIN
           SELECT cm.clinic_id_ref FROM clinic_memberships cm
           WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true
           UNION
-          SELECT cm.clinic_id::uuid FROM clinic_memberships cm
+          SELECT cm.clinic_id FROM clinic_memberships cm
           WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true AND cm.clinic_id IS NOT NULL
         )
       )
@@ -492,7 +492,7 @@ DO $$ BEGIN
           SELECT cm.clinic_id_ref FROM clinic_memberships cm
           WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true
           UNION
-          SELECT cm.clinic_id::uuid FROM clinic_memberships cm
+          SELECT cm.clinic_id FROM clinic_memberships cm
           WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true AND cm.clinic_id IS NOT NULL
         )
       )
@@ -512,7 +512,7 @@ DO $$ BEGIN
           SELECT cm.clinic_id_ref FROM clinic_memberships cm
           WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true
           UNION
-          SELECT cm.clinic_id::uuid FROM clinic_memberships cm
+          SELECT cm.clinic_id FROM clinic_memberships cm
           WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true AND cm.clinic_id IS NOT NULL
         )
       )
@@ -678,7 +678,7 @@ BEGIN
   SELECT role INTO v_role
   FROM public.clinic_memberships
   WHERE user_id = p_user_id
-    AND (clinic_id_ref = p_clinic_id OR clinic_id = p_clinic_id::text)
+    AND (clinic_id_ref = p_clinic_id OR clinic_id = p_clinic_id)
     AND is_active = true
   LIMIT 1;
   RETURN v_role;
@@ -695,7 +695,7 @@ BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.clinic_memberships
     WHERE user_id = p_user_id
-      AND (clinic_id_ref = p_clinic_id OR clinic_id = p_clinic_id::text)
+      AND (clinic_id_ref = p_clinic_id OR clinic_id = p_clinic_id)
       AND role = 'admin'
       AND is_active = true
   );
@@ -712,7 +712,7 @@ BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.clinic_memberships
     WHERE user_id = p_user_id
-      AND (clinic_id_ref = p_clinic_id OR clinic_id = p_clinic_id::text)
+      AND (clinic_id_ref = p_clinic_id OR clinic_id = p_clinic_id)
       AND role IN ('pt', 'admin')
       AND is_active = true
   );
@@ -740,7 +740,7 @@ BEGIN
   SELECT role INTO v_role
   FROM public.clinic_memberships
   WHERE user_id = p_user_id
-    AND (clinic_id_ref = v_clinic_id OR clinic_id = v_clinic_id::text)
+    AND (clinic_id_ref = v_clinic_id OR clinic_id = v_clinic_id)
     AND is_active = true
   LIMIT 1;
 
@@ -778,7 +778,7 @@ BEGIN
   SELECT role INTO v_user_role
   FROM public.clinic_memberships
   WHERE user_id = auth.uid()
-    AND (clinic_id_ref = NEW.clinic_id OR clinic_id = NEW.clinic_id::text)
+    AND (clinic_id_ref = NEW.clinic_id OR clinic_id = NEW.clinic_id)
     AND is_active = true
   LIMIT 1;
 
