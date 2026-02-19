@@ -34,6 +34,7 @@ async function findOrCreatePatient(
   patientEmail: string | null,
   patientPhone: string | null
 ): Promise<string> {
+  // Try to find by email first
   if (patientEmail) {
     const { data: existing } = await supabaseAdmin
       .from('patients')
@@ -45,10 +46,12 @@ async function findOrCreatePatient(
     if (existing?.id) return existing.id;
   }
 
+  // Split name into first/last
   const nameParts = patientName.trim().split(' ');
   const firstName = nameParts[0] || patientName;
   const lastName = nameParts.slice(1).join(' ') || '';
 
+  // Create new patient
   const { data, error } = await supabaseAdmin
     .from('patients')
     .insert({
@@ -81,7 +84,7 @@ function formatSOAPNote(body: Record<string, unknown>): string {
   const lines: string[] = [];
 
   lines.push('=== TELEHEALTH CONSULTATION NOTE ===');
-  lines.push('Source: PTBot Telehealth');
+  lines.push(`Source: PTBot Telehealth`);
   if (session?.date) {
     lines.push(`Date of Service: ${new Date(session.date as string).toLocaleDateString('en-US', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -92,10 +95,29 @@ function formatSOAPNote(body: Record<string, unknown>): string {
   }
   lines.push('');
 
-  if (soap?.subjective) { lines.push('SUBJECTIVE:'); lines.push(soap.subjective); lines.push(''); }
-  if (soap?.objective)  { lines.push('OBJECTIVE:');  lines.push(soap.objective);  lines.push(''); }
-  if (soap?.assessment) { lines.push('ASSESSMENT:'); lines.push(soap.assessment); lines.push(''); }
-  if (soap?.plan)       { lines.push('PLAN:');        lines.push(soap.plan);       lines.push(''); }
+  if (soap?.subjective) {
+    lines.push('SUBJECTIVE:');
+    lines.push(soap.subjective);
+    lines.push('');
+  }
+
+  if (soap?.objective) {
+    lines.push('OBJECTIVE:');
+    lines.push(soap.objective);
+    lines.push('');
+  }
+
+  if (soap?.assessment) {
+    lines.push('ASSESSMENT:');
+    lines.push(soap.assessment);
+    lines.push('');
+  }
+
+  if (soap?.plan) {
+    lines.push('PLAN:');
+    lines.push(soap.plan);
+    lines.push('');
+  }
 
   if (recommendations) {
     lines.push('RECOMMENDATIONS:');
@@ -113,15 +135,22 @@ function formatSOAPNote(body: Record<string, unknown>): string {
 
   if (compliance) {
     lines.push('COMPLIANCE:');
-    if (compliance.location_state) lines.push(`  Patient Location (verified): ${compliance.location_state}`);
-    if (compliance.consent_version) lines.push(`  Telehealth Consent Version: ${compliance.consent_version}`);
-    if (compliance.location_verified) lines.push('  Location Verified: Yes');
+    if (compliance.location_state) {
+      lines.push(`  Patient Location (verified): ${compliance.location_state}`);
+    }
+    if (compliance.consent_version) {
+      lines.push(`  Telehealth Consent Version: ${compliance.consent_version}`);
+    }
+    if (compliance.location_verified) {
+      lines.push(`  Location Verified: Yes`);
+    }
   }
 
   return lines.join('\n');
 }
 
 export async function POST(request: NextRequest) {
+  // Auth check
   if (!verifyPTBotAuth(request)) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
@@ -136,7 +165,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { external_id, patient_name, patient_email, patient_phone, note_type, session } = body as {
+    const {
+      external_id,
+      patient_name,
+      patient_email,
+      patient_phone,
+      note_type,
+      session,
+    } = body as {
       external_id?: string;
       patient_name: string;
       patient_email?: string;
@@ -146,17 +182,27 @@ export async function POST(request: NextRequest) {
     };
 
     if (!patient_name) {
-      return NextResponse.json({ success: false, error: 'patient_name is required' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'patient_name is required' },
+        { status: 400 }
+      );
     }
 
-    const patientId = await findOrCreatePatient(clinicId, patient_name, patient_email ?? null, patient_phone ?? null);
+    // Find or create the patient
+    const patientId = await findOrCreatePatient(
+      clinicId,
+      patient_name,
+      patient_email ?? null,
+      patient_phone ?? null
+    );
+
+    // Format note text
     const outputText = formatSOAPNote(body as Record<string, unknown>);
 
+    // Map PTBot note_type to AIDOCS note_type enum ('daily_soap' | 'pt_evaluation')
     const docType = note_type === 'initial_evaluation' ? 'pt_evaluation' : 'daily_soap';
-      : note_type === 'initial_evaluation' ? 'evaluation'
-      : note_type === 'progress_note' ? 'progress_summary'
-      : 'daily_note';
 
+    // Check if note with this external_id already exists
     let existingNoteId: string | null = null;
     if (external_id) {
       const { data: existingNote } = await supabaseAdmin
@@ -176,6 +222,7 @@ export async function POST(request: NextRequest) {
     const noteTitle = `PTBot Telehealth – ${patient_name} – ${new Date(serviceDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
     if (existingNoteId) {
+      // Update existing
       const { data, error } = await supabaseAdmin
         .from('notes')
         .update({
@@ -191,9 +238,11 @@ export async function POST(request: NextRequest) {
         console.error('[ptbot/consult-notes] Update error:', error.message);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
       }
+
       return NextResponse.json({ success: true, record_id: data.id });
     }
 
+    // Create new note
     const { data, error } = await supabaseAdmin
       .from('notes')
       .insert({
