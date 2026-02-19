@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
     const patientId = await findOrCreatePatient(clinicId, patient_name, patient_email ?? null, patient_phone ?? null);
     const outputText = formatSOAPNote(body as Record<string, unknown>);
 
-    const docType = note_type === 'follow_up' ? 'daily_note'
+    const docType = note_type === 'initial_evaluation' ? 'pt_evaluation' : 'daily_soap';
       : note_type === 'initial_evaluation' ? 'evaluation'
       : note_type === 'progress_note' ? 'progress_summary'
       : 'daily_note';
