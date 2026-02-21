@@ -26,7 +26,7 @@ interface DeletePatientDialogProps {
 
 export function DeletePatientDialog({ patientId, patientName }: DeletePatientDialogProps) {
   const router = useRouter();
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [reason, setReason] = useState('');
@@ -51,7 +51,7 @@ export function DeletePatientDialog({ patientId, patientName }: DeletePatientDia
       const response = await fetch(`/api/patients/${patientId}/delete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password, reason }),
+        body: JSON.stringify({ email: user?.email, password, reason }),
       });
 
       if (!response.ok) {

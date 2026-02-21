@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 
 export async function GET(
   request: NextRequest,
@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     // First try legacy notes table
-    let { data, error } = await supabase
+    const { data: noteData, error } = await supabaseAdmin
       .from('notes')
       .select('*')
       .eq('id', params.id)
@@ -15,7 +15,7 @@ export async function GET(
 
     // If not found in notes, try documents table
     if (error && error.code === 'PGRST116') {
-      const docResult = await supabase
+      const docResult = await supabaseAdmin
         .from('documents')
         .select('*')
         .eq('id', params.id)
@@ -28,13 +28,12 @@ export async function GET(
 
       // Map document to note format for compatibility
       const doc = docResult.data;
-      // Map ClinicalDocType → NoteType for frontend compatibility
       const noteTypeMap: Record<string, string> = {
         daily_note: 'daily_soap',
         evaluation: 'pt_evaluation',
         re_evaluation: 'pt_evaluation',
       };
-      data = {
+      return NextResponse.json({
         id: doc.id,
         note_type: noteTypeMap[doc.doc_type] || 'daily_soap',
         title: doc.title || null,
@@ -52,13 +51,13 @@ export async function GET(
         finalized_at: doc.finalized_at,
         finalized_by: doc.finalized_by,
         created_at: doc.created_at,
-      };
+      });
     } else if (error) {
       console.error('Error fetching note:', error);
       return NextResponse.json({ error: error.message }, { status: 404 });
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(noteData);
   } catch (error) {
     console.error('Error fetching note:', error);
     return NextResponse.json(
@@ -74,20 +73,20 @@ export async function DELETE(
 ) {
   try {
     // Try deleting from legacy notes table
-    const { error: notesError } = await supabase
+    const { error: notesError } = await supabaseAdmin
       .from('notes')
       .delete()
       .eq('id', params.id);
 
     // Also try deleting any linked document record
-    const { error: docsError } = await supabase
+    await supabaseAdmin
       .from('documents')
       .delete()
       .eq('legacy_note_id', params.id);
 
     // If note wasn't in notes table, try documents table directly
     if (notesError) {
-      const { error: docDirectError } = await supabase
+      const { error: docDirectError } = await supabaseAdmin
         .from('documents')
         .delete()
         .eq('id', params.id);
@@ -143,7 +142,7 @@ export async function PATCH(
     }
 
     // Try updating legacy notes table first
-    let { data, error } = await supabase
+    const { data: noteData, error } = await supabaseAdmin
       .from('notes')
       .update(updateData)
       .eq('id', params.id)
@@ -156,7 +155,7 @@ export async function PATCH(
       if (rich_content) docUpdateData.rich_content = updateData.rich_content;
       if (output_text) docUpdateData.output_text = output_text;
 
-      const docResult = await supabase
+      const docResult = await supabaseAdmin
         .from('documents')
         .update(docUpdateData)
         .eq('id', params.id)
@@ -168,13 +167,13 @@ export async function PATCH(
         return NextResponse.json({ error: docResult.error.message }, { status: 500 });
       }
 
-      data = docResult.data;
+      return NextResponse.json(docResult.data);
     } else if (error) {
       console.error('Error updating note:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(noteData);
   } catch (error) {
     console.error('Error updating note:', error);
     return NextResponse.json(
