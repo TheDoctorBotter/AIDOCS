@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 import { formatNoteTitle } from '@/lib/note-utils';
 import { NoteType } from '@/lib/types';
 
@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit') || '50';
     const clinicId = searchParams.get('clinic_id');
 
-    let query = supabase
+    let query = supabaseAdmin
       .from('notes')
       .select('*')
       .order('created_at', { ascending: false })
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       new Date().toISOString()
     );
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('notes')
       .insert({
         note_type: body.note_type,

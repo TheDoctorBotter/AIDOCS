@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabase-server';
 
 export async function POST(
@@ -8,37 +8,36 @@ export async function POST(
 ) {
   try {
     const patientId = params.id;
-    const { password, reason } = await request.json();
+    const { email, password, reason } = await request.json();
 
-    if (!password || !reason) {
+    if (!email || !password || !reason) {
       return NextResponse.json(
-        { error: 'Password and reason are required' },
+        { error: 'Email, password, and reason are required' },
         { status: 400 }
       );
     }
 
-    // Get the current authenticated user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    // Authenticate by verifying the admin's credentials
+    // Use a fresh client so we don't pollute any shared state
+    const authClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false } }
+    );
 
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
-    // Verify the admin's password by attempting to sign in
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user.email || '',
+    const { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({
+      email,
       password,
     });
 
-    if (signInError) {
+    if (signInError || !signInData.user) {
       return NextResponse.json(
-        { error: 'Invalid password' },
+        { error: 'Invalid email or password' },
         { status: 401 }
       );
     }
+
+    const user = signInData.user;
 
     // Check if user is an admin for the patient's clinic
     const { data: patient, error: patientError } = await supabaseAdmin
