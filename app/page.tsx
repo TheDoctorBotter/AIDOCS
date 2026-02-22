@@ -30,6 +30,7 @@ import {
 } from '@/lib/types';
 import { format } from 'date-fns';
 import { useAuth } from '@/lib/auth-context';
+import { PTBotFolder } from '@/components/PTBotFolder';
 
 interface PtbotImport {
   id: string;
@@ -272,6 +273,11 @@ export default function HomePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {/* PTBot Patient Folder */}
+                {currentClinic?.clinic_id && (
+                  <PTBotFolder clinicId={currentClinic.clinic_id} />
+                )}
+
                 {episodes.length === 0 ? (
                   <div className="text-center py-8 text-slate-500">
                     <Users className="h-10 w-10 mx-auto mb-3 text-slate-300" />
