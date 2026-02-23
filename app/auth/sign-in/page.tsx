@@ -91,11 +91,11 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-slate-100 flex items-center justify-center p-4">
+    <div className="h-screen bg-gradient-to-b from-emerald-50 to-slate-100 flex items-center justify-center p-4 overflow-hidden">
       <div className="w-full max-w-md">
         {/* Logo and Title */}
-        <div className="text-center mb-8">
-          <img src="/logo.png" alt="Eccentrix EMR" className="h-[900px] object-contain mx-auto mb-4" />
+        <div className="text-center mb-6">
+          <img src="/logo.png" alt="Eccentrix EMR" className="h-32 object-contain mx-auto mb-2" />
           <p className="text-slate-600">Sign in to your account</p>
         </div>
 
