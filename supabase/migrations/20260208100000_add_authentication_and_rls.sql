@@ -455,78 +455,98 @@ USING (
 
 -- ============================================================================
 -- 10. TEMPLATES AND BRANDING - RLS POLICIES
+-- Wrapped in conditional blocks to avoid errors if tables don't exist yet.
+-- These tables are created in earlier migrations (20260129000000, 20260114225337).
 -- ============================================================================
 
--- Templates table
-ALTER TABLE IF EXISTS templates ENABLE ROW LEVEL SECURITY;
+-- Templates table (only if it exists)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'templates') THEN
+    EXECUTE 'ALTER TABLE templates ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'DROP POLICY IF EXISTS "templates_select" ON templates';
+    EXECUTE 'DROP POLICY IF EXISTS "templates_all_admin" ON templates';
+    EXECUTE $policy$
+      CREATE POLICY "templates_select" ON templates FOR SELECT USING (true)
+    $policy$;
+    EXECUTE $policy$
+      CREATE POLICY "templates_all_admin" ON templates FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM clinic_memberships
+          WHERE user_id = auth.uid()
+            AND role = 'admin'
+            AND is_active = true
+        )
+      )
+    $policy$;
+  END IF;
+END $$;
 
-DROP POLICY IF EXISTS "templates_select" ON templates;
-CREATE POLICY "templates_select" ON templates FOR SELECT USING (true);
+-- Document templates table (only if it exists)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'document_templates') THEN
+    EXECUTE 'ALTER TABLE document_templates ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'DROP POLICY IF EXISTS "document_templates_select" ON document_templates';
+    EXECUTE 'DROP POLICY IF EXISTS "document_templates_all_admin" ON document_templates';
+    EXECUTE $policy$
+      CREATE POLICY "document_templates_select" ON document_templates FOR SELECT USING (
+        EXISTS (
+          SELECT 1 FROM clinic_memberships
+          WHERE user_id = auth.uid()
+            AND (clinic_id_ref = document_templates.clinic_id
+                 OR clinic_id = document_templates.clinic_id)
+            AND is_active = true
+        )
+      )
+    $policy$;
+    EXECUTE $policy$
+      CREATE POLICY "document_templates_all_admin" ON document_templates FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM clinic_memberships
+          WHERE user_id = auth.uid()
+            AND (clinic_id_ref = document_templates.clinic_id
+                 OR clinic_id = document_templates.clinic_id)
+            AND role = 'admin'
+            AND is_active = true
+        )
+      )
+    $policy$;
+  END IF;
+END $$;
 
-DROP POLICY IF EXISTS "templates_all_admin" ON templates;
-CREATE POLICY "templates_all_admin" ON templates FOR ALL
-USING (
-  EXISTS (
-    SELECT 1 FROM clinic_memberships
-    WHERE user_id = auth.uid()
-      AND role = 'admin'
-      AND is_active = true
-  )
-);
-
--- Document templates table
-ALTER TABLE IF EXISTS document_templates ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "document_templates_select" ON document_templates;
-CREATE POLICY "document_templates_select" ON document_templates FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM clinic_memberships
-    WHERE user_id = auth.uid()
-      AND (clinic_id_ref = document_templates.clinic_id
-           OR clinic_id = document_templates.clinic_id)
-      AND is_active = true
-  )
-);
-
-DROP POLICY IF EXISTS "document_templates_all_admin" ON document_templates;
-CREATE POLICY "document_templates_all_admin" ON document_templates FOR ALL
-USING (
-  EXISTS (
-    SELECT 1 FROM clinic_memberships
-    WHERE user_id = auth.uid()
-      AND (clinic_id_ref = document_templates.clinic_id
-           OR clinic_id = document_templates.clinic_id)
-      AND role = 'admin'
-      AND is_active = true
-  )
-);
-
--- Branding settings table
-ALTER TABLE IF EXISTS branding_settings ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "branding_settings_select" ON branding_settings;
-CREATE POLICY "branding_settings_select" ON branding_settings FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM clinic_memberships
-    WHERE user_id = auth.uid()
-      AND (clinic_id_ref = branding_settings.clinic_id
-           OR clinic_id = branding_settings.clinic_id)
-      AND is_active = true
-  )
-);
-
-DROP POLICY IF EXISTS "branding_settings_all_admin" ON branding_settings;
-CREATE POLICY "branding_settings_all_admin" ON branding_settings FOR ALL
-USING (
-  EXISTS (
-    SELECT 1 FROM clinic_memberships
-    WHERE user_id = auth.uid()
-      AND (clinic_id_ref = branding_settings.clinic_id
-           OR clinic_id = branding_settings.clinic_id)
-      AND role = 'admin'
-      AND is_active = true
-  )
-);
+-- Branding settings table (only if it exists)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'branding_settings') THEN
+    EXECUTE 'ALTER TABLE branding_settings ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'DROP POLICY IF EXISTS "branding_settings_select" ON branding_settings';
+    EXECUTE 'DROP POLICY IF EXISTS "branding_settings_all_admin" ON branding_settings';
+    EXECUTE $policy$
+      CREATE POLICY "branding_settings_select" ON branding_settings FOR SELECT USING (
+        EXISTS (
+          SELECT 1 FROM clinic_memberships
+          WHERE user_id = auth.uid()
+            AND (clinic_id_ref = branding_settings.clinic_id
+                 OR clinic_id = branding_settings.clinic_id)
+            AND is_active = true
+        )
+      )
+    $policy$;
+    EXECUTE $policy$
+      CREATE POLICY "branding_settings_all_admin" ON branding_settings FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM clinic_memberships
+          WHERE user_id = auth.uid()
+            AND (clinic_id_ref = branding_settings.clinic_id
+                 OR clinic_id = branding_settings.clinic_id)
+            AND role = 'admin'
+            AND is_active = true
+        )
+      )
+    $policy$;
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 11. FINALIZATION ENFORCEMENT TRIGGER
