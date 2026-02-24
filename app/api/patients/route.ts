@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const activeOnly = searchParams.get('active') !== 'false';
     const search = searchParams.get('search');
 
-    let query = client.from('patients').select('*');
+    let query = client.from('patients').select('*').is('deleted_at', null);
 
     if (clinicId) {
       query = query.eq('clinic_id', clinicId);
