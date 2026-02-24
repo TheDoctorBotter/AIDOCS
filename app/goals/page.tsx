@@ -325,7 +325,7 @@ export default function GoalsPage() {
           progress_percentage: progressForm.progress_percentage
             ? parseInt(progressForm.progress_percentage, 10)
             : null,
-          status: (progressForm.status && progressForm.status !== 'no_change') ? progressForm.status : null,
+          status: progressForm.status ? progressForm.status : null,
           notes: progressForm.notes || null,
           recorded_by: user?.id,
         }),
