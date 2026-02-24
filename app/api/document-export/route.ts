@@ -6,13 +6,15 @@
  * Supports:
  * - DOCX export (direct template filling)
  * - PDF export (DOCX to PDF conversion)
+ * - PDF template export (fill mapped fields on uploaded PDF templates)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { fillDocxTemplate, fillDocxTemplateRaw } from '@/lib/templates/docx-engine';
-import { NoteTemplateData, ExportFormat } from '@/lib/templates/types';
+import { fillPdfTemplate } from '@/lib/templates/pdf-engine';
+import { NoteTemplateData, ExportFormat, TemplateType } from '@/lib/templates/types';
 
 const STORAGE_BUCKET = 'document-templates';
 
@@ -21,6 +23,7 @@ const PDF_CONVERSION_URL = process.env.PDF_CONVERSION_URL || '';
 
 interface ExportRequestBody {
   template_id: string;
+  template_type?: TemplateType; // 'docx' (default) or 'pdf'
   format: ExportFormat;
   note_data: NoteTemplateData;
   note_id?: string; // Optional: link export to a note
@@ -33,7 +36,7 @@ export async function POST(request: NextRequest) {
     const client = serviceRoleKey ? supabaseAdmin : supabase;
 
     const body: ExportRequestBody = await request.json();
-    const { template_id, format, note_data, note_id } = body;
+    const { template_id, template_type = 'docx', format, note_data, note_id } = body;
 
     // Validate required fields
     if (!template_id) {
@@ -57,6 +60,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ================================================================
+    // PDF Template Export Path
+    // ================================================================
+    if (template_type === 'pdf') {
+      return await handlePdfTemplateExport(client, template_id, note_data, note_id);
+    }
+
+    // ================================================================
+    // DOCX Template Export Path (existing behavior)
+    // ================================================================
     // Get template from database
     const { data: template, error: templateError } = await client
       .from('document_templates')
@@ -191,6 +204,105 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Handle export for PDF-based templates.
+ * Fetches the PDF template and its mapped fields, fills the PDF, and returns it.
+ */
+async function handlePdfTemplateExport(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  client: any,
+  templateId: string,
+  noteData: NoteTemplateData,
+  noteId?: string
+) {
+  // Get PDF template
+  const { data: template, error: templateError } = await client
+    .from('pdf_form_templates')
+    .select('*')
+    .eq('id', templateId)
+    .single();
+
+  if (templateError || !template) {
+    return NextResponse.json(
+      { error: `PDF template not found: ${templateError?.message || templateId}` },
+      { status: 404 }
+    );
+  }
+
+  // Get mapped fields
+  const { data: fields, error: fieldsError } = await client
+    .from('pdf_form_fields')
+    .select('*')
+    .eq('template_id', templateId)
+    .order('sort_order', { ascending: true });
+
+  if (fieldsError) {
+    return NextResponse.json(
+      { error: `Failed to load fields: ${fieldsError.message}` },
+      { status: 500 }
+    );
+  }
+
+  if (!fields || fields.length === 0) {
+    return NextResponse.json(
+      { error: 'No fields mapped for this PDF template. Please map fields first.' },
+      { status: 400 }
+    );
+  }
+
+  // Download PDF file
+  const { data: fileData, error: downloadError } = await client.storage
+    .from(STORAGE_BUCKET)
+    .download(template.file_key);
+
+  if (downloadError || !fileData) {
+    return NextResponse.json(
+      { error: `Failed to download PDF template: ${downloadError?.message || 'empty file'}` },
+      { status: 500 }
+    );
+  }
+
+  const templateBuffer = await fileData.arrayBuffer();
+
+  // Fill the PDF
+  const fillResult = await fillPdfTemplate({
+    templateBuffer,
+    fields,
+    data: noteData,
+  });
+
+  if (!fillResult.success || !fillResult.buffer) {
+    return NextResponse.json(
+      { error: fillResult.error || 'Failed to fill PDF template' },
+      { status: 500 }
+    );
+  }
+
+  // Generate filename
+  const patientName = noteData.patientName || noteData.patientLastName || 'Unknown';
+  const dateStr = noteData.dateOfService || new Date().toISOString().split('T')[0];
+  const sanitizedName = patientName.replace(/[^a-zA-Z0-9]/g, '_');
+  const baseFilename = `${sanitizedName}_${template.note_type}_${dateStr}`;
+
+  // Update note reference if provided
+  if (noteId) {
+    await client
+      .from('notes')
+      .update({
+        document_template_id: templateId,
+        clinic_name: template.clinic_name,
+      })
+      .eq('id', noteId);
+  }
+
+  return new NextResponse(fillResult.buffer, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${baseFilename}.pdf"`,
+    },
+  });
 }
 
 /**

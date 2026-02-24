@@ -265,6 +265,11 @@ export default function TemplateManagementPage() {
             <p className="text-slate-600 mt-1">
               Manage clinic-branded DOCX templates for note exports
             </p>
+            <Link href="/templates/manage/pdf">
+              <Button variant="link" size="sm" className="mt-1 p-0 h-auto text-blue-600">
+                Or upload a PDF template instead →
+              </Button>
+            </Link>
           </div>
 
           <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
