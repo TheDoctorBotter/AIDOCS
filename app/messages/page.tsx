@@ -145,7 +145,7 @@ export default function MessagesPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: user.id }),
         });
-        setReadMessages((prev) => new Set([...prev, message.id]));
+        setReadMessages((prev) => new Set([...Array.from(prev), message.id]));
       } catch (error) {
         console.error('Error marking message as read:', error);
       }
