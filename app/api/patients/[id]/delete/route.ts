@@ -4,10 +4,10 @@ import { supabaseAdmin } from '@/lib/supabase-server';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const patientId = params.id;
+    const { id: patientId } = await params;
     const { email, password, reason } = await request.json();
 
     if (!email || !password || !reason) {
