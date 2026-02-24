@@ -18,6 +18,9 @@ import {
   Shield,
   ChevronRight,
   Settings as SettingsIcon,
+  Stethoscope,
+  ScrollText,
+  ClipboardCheck,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 
@@ -55,6 +58,30 @@ export default function SettingsPage() {
       href: '/templates/manage',
       iconColor: 'text-amber-600',
       bgColor: 'bg-amber-100',
+    },
+    {
+      title: 'Provider Profiles',
+      description: 'Manage provider NPI, license, credentials, and scheduling preferences',
+      icon: Stethoscope,
+      href: '/settings/providers',
+      iconColor: 'text-cyan-600',
+      bgColor: 'bg-cyan-100',
+    },
+    {
+      title: 'Audit Log',
+      description: 'View HIPAA-compliant access and change audit trail',
+      icon: ScrollText,
+      href: '/audit',
+      iconColor: 'text-slate-600',
+      bgColor: 'bg-slate-100',
+    },
+    {
+      title: 'CPT Codes',
+      description: 'View and manage CPT/HCPCS billing codes for charge capture',
+      icon: ClipboardCheck,
+      href: '/billing',
+      iconColor: 'text-rose-600',
+      bgColor: 'bg-rose-100',
     },
   ];
 
@@ -167,7 +194,7 @@ export default function SettingsPage() {
                 <strong>Eccentrix EMR</strong> — Secure clinical documentation and patient
                 chart management for physical therapy practices.
               </p>
-              <p>Version 2.0.0</p>
+              <p>Version 3.0.0</p>
               <p className="text-xs text-slate-400 pt-1">Powered by PTBot</p>
               <p className="text-xs pt-2">
                 This system is designed to assist clinicians in creating professional

@@ -26,6 +26,13 @@ import {
   UserCog,
   Briefcase,
   Plus,
+  Calendar,
+  Target,
+  DollarSign,
+  Dumbbell,
+  BarChart3,
+  FileSignature,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -110,36 +117,126 @@ export function TopNav() {
             </Link>
 
             {/* Navigation Links */}
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden md:flex items-center gap-1 flex-wrap">
               {canSeeFrontOffice && (
                 <Link href="/front-office">
                   <Button
                     variant={isActive('/front-office') ? 'secondary' : 'ghost'}
                     size="sm"
-                    className="gap-2"
+                    className="gap-1.5 text-xs"
                   >
-                    <Briefcase className="h-4 w-4" />
+                    <Briefcase className="h-3.5 w-3.5" />
                     Front Office
                   </Button>
                 </Link>
               )}
               <Link href="/">
                 <Button
-                  variant={isActive('/') && !isActive('/settings') && !isActive('/charts') && !isActive('/archived') && !isActive('/front-office') ? 'secondary' : 'ghost'}
+                  variant={isActive('/') && !isActive('/settings') && !isActive('/charts') && !isActive('/archived') && !isActive('/front-office') && !isActive('/schedule') && !isActive('/billing') && !isActive('/reports') && !isActive('/exercises') && !isActive('/goals') && !isActive('/outcome-measures') && !isActive('/cosign') && !isActive('/messages') && !isActive('/hep') && !isActive('/audit') ? 'secondary' : 'ghost'}
                   size="sm"
-                  className="gap-2"
+                  className="gap-1.5 text-xs"
                 >
-                  <Home className="h-4 w-4" />
+                  <Home className="h-3.5 w-3.5" />
                   Dashboard
+                </Button>
+              </Link>
+              <Link href="/schedule">
+                <Button
+                  variant={isActive('/schedule') ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                >
+                  <Calendar className="h-3.5 w-3.5" />
+                  Schedule
+                </Button>
+              </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant={isActive('/goals') || isActive('/outcome-measures') || isActive('/exercises') || isActive('/hep') ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                  >
+                    <Target className="h-3.5 w-3.5" />
+                    Clinical
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-52">
+                  <DropdownMenuItem asChild>
+                    <Link href="/goals" className="flex items-center gap-2">
+                      <Target className="h-4 w-4" />
+                      Goals (STG/LTG)
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/outcome-measures" className="flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4" />
+                      Outcome Measures
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/exercises" className="flex items-center gap-2">
+                      <Dumbbell className="h-4 w-4" />
+                      Exercise Library
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/hep" className="flex items-center gap-2">
+                      <Dumbbell className="h-4 w-4" />
+                      HEP Programs
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Link href="/billing">
+                <Button
+                  variant={isActive('/billing') ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                >
+                  <DollarSign className="h-3.5 w-3.5" />
+                  Billing
+                </Button>
+              </Link>
+              <Link href="/cosign">
+                <Button
+                  variant={isActive('/cosign') ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                >
+                  <FileSignature className="h-3.5 w-3.5" />
+                  Co-Sign
+                </Button>
+              </Link>
+              <Link href="/messages">
+                <Button
+                  variant={isActive('/messages') ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Messages
+                </Button>
+              </Link>
+              <Link href="/reports">
+                <Button
+                  variant={isActive('/reports') ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                >
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  Reports
                 </Button>
               </Link>
               <Link href="/settings">
                 <Button
                   variant={isActive('/settings') ? 'secondary' : 'ghost'}
                   size="sm"
-                  className="gap-2"
+                  className="gap-1.5 text-xs"
                 >
-                  <Settings className="h-4 w-4" />
+                  <Settings className="h-3.5 w-3.5" />
                   Settings
                 </Button>
               </Link>
@@ -147,9 +244,9 @@ export function TopNav() {
                 <Button
                   variant={isActive('/archived') ? 'secondary' : 'ghost'}
                   size="sm"
-                  className="gap-2"
+                  className="gap-1.5 text-xs"
                 >
-                  <Archive className="h-4 w-4" />
+                  <Archive className="h-3.5 w-3.5" />
                   Archived
                 </Button>
               </Link>
