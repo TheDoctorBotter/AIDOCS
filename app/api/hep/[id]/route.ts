@@ -21,7 +21,7 @@ export async function GET(
 
     const { data, error } = await client
       .from('hep_programs')
-      .select('*, hep_program_exercises(*, exercise:exercises(*))')
+      .select('*, hep_program_exercises(*, exercise:exercise_library(*))')
       .eq('id', id)
       .single();
 
