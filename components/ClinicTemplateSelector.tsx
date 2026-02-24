@@ -22,13 +22,22 @@ import { Building2, FileText, Star, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   DocumentTemplate,
+  PdfFormTemplate,
   DocumentNoteType,
   DOCUMENT_NOTE_TYPE_LABELS,
+  TemplateType,
+  UnifiedTemplate,
 } from '@/lib/templates/types';
+
+/** Returned when a template is selected — includes the type discriminator */
+export interface SelectedTemplate {
+  template: DocumentTemplate | PdfFormTemplate;
+  type: TemplateType;
+}
 
 interface ClinicTemplateSelectorProps {
   /** Called when a template is selected */
-  onTemplateSelect: (template: DocumentTemplate | null) => void;
+  onTemplateSelect: (selection: SelectedTemplate | null) => void;
   /** Pre-selected clinic name */
   defaultClinic?: string;
   /** Pre-selected note type */
@@ -41,9 +50,14 @@ interface ClinicTemplateSelectorProps {
   className?: string;
 }
 
+interface UnifiedEntry extends UnifiedTemplate {
+  _source: DocumentTemplate | PdfFormTemplate;
+}
+
 /**
  * Clinic and Template Selector Component
  *
+ * Supports both DOCX and PDF templates.
  * Two-step selection:
  * 1. Select clinic/brand
  * 2. Select note type (filtered by clinic's available templates)
@@ -58,7 +72,8 @@ export function ClinicTemplateSelector({
   showOnlyWithTemplates = true,
   className,
 }: ClinicTemplateSelectorProps) {
-  const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
+  const [docxTemplates, setDocxTemplates] = useState<DocumentTemplate[]>([]);
+  const [pdfTemplates, setPdfTemplates] = useState<PdfFormTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,20 +81,26 @@ export function ClinicTemplateSelector({
   const [selectedNoteType, setSelectedNoteType] = useState<DocumentNoteType | ''>(
     defaultNoteType || ''
   );
-  const [selectedTemplate, setSelectedTemplate] = useState<DocumentTemplate | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<UnifiedEntry | null>(null);
 
-  // Fetch all templates
+  // Fetch all templates (DOCX + PDF in parallel)
   useEffect(() => {
     async function fetchTemplates() {
       try {
-        const response = await fetch('/api/templates/document');
-        const data = await response.json();
+        const [docxRes, pdfRes] = await Promise.all([
+          fetch('/api/templates/document'),
+          fetch('/api/templates/pdf'),
+        ]);
 
-        if (response.ok) {
-          setTemplates(data);
-        } else {
-          // Show the actual error from the API
-          setError(data.error || `Failed to load templates (${response.status})`);
+        if (docxRes.ok) {
+          setDocxTemplates(await docxRes.json());
+        }
+        if (pdfRes.ok) {
+          setPdfTemplates(await pdfRes.json());
+        }
+
+        if (!docxRes.ok && !pdfRes.ok) {
+          setError('Failed to load templates');
         }
       } catch (err) {
         setError(`Network error: ${err instanceof Error ? err.message : 'Failed to load templates'}`);
@@ -91,14 +112,42 @@ export function ClinicTemplateSelector({
     fetchTemplates();
   }, []);
 
+  // Build unified template list
+  const allEntries: UnifiedEntry[] = [
+    ...docxTemplates.map(
+      (t): UnifiedEntry => ({
+        id: t.id,
+        type: 'docx',
+        clinic_name: t.clinic_name,
+        note_type: t.note_type,
+        template_name: t.template_name,
+        is_default: t.is_default,
+        file_name: t.file_name,
+        _source: t,
+      })
+    ),
+    ...pdfTemplates.map(
+      (t): UnifiedEntry => ({
+        id: t.id,
+        type: 'pdf',
+        clinic_name: t.clinic_name,
+        note_type: t.note_type,
+        template_name: t.template_name,
+        is_default: t.is_default,
+        file_name: t.file_name,
+        _source: t,
+      })
+    ),
+  ];
+
   // Get unique clinic names
-  const clinicNames = Array.from(new Set(templates.map((t) => t.clinic_name))).sort();
+  const clinicNames = Array.from(new Set(allEntries.map((t) => t.clinic_name))).sort();
 
   // Get available note types for selected clinic
   const availableNoteTypes = selectedClinic
     ? Array.from(
         new Set(
-          templates
+          allEntries
             .filter((t) => t.clinic_name === selectedClinic)
             .filter((t) => !noteTypeFilter || noteTypeFilter.includes(t.note_type))
             .map((t) => t.note_type)
@@ -107,32 +156,31 @@ export function ClinicTemplateSelector({
     : [];
 
   // Get templates for selected clinic + note type
-  const matchingTemplates =
+  const matchingEntries =
     selectedClinic && selectedNoteType
-      ? templates.filter(
+      ? allEntries.filter(
           (t) => t.clinic_name === selectedClinic && t.note_type === selectedNoteType
         )
       : [];
 
   // Auto-select default template when clinic + note type are selected
   useEffect(() => {
-    if (selectedClinic && selectedNoteType && matchingTemplates.length > 0) {
-      // Find default template or use first one
-      const defaultTemplate = matchingTemplates.find((t) => t.is_default);
-      const templateToSelect = defaultTemplate || matchingTemplates[0];
-      setSelectedTemplate(templateToSelect);
-      onTemplateSelect(templateToSelect);
+    if (selectedClinic && selectedNoteType && matchingEntries.length > 0) {
+      const defaultEntry = matchingEntries.find((t) => t.is_default);
+      const entryToSelect = defaultEntry || matchingEntries[0];
+      setSelectedEntry(entryToSelect);
+      onTemplateSelect({ template: entryToSelect._source, type: entryToSelect.type });
     } else {
-      setSelectedTemplate(null);
+      setSelectedEntry(null);
       onTemplateSelect(null);
     }
-  }, [selectedClinic, selectedNoteType, templates]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedClinic, selectedNoteType, docxTemplates, pdfTemplates]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle clinic change
   const handleClinicChange = (clinic: string) => {
     setSelectedClinic(clinic);
-    setSelectedNoteType(''); // Reset note type when clinic changes
-    setSelectedTemplate(null);
+    setSelectedNoteType('');
+    setSelectedEntry(null);
     onTemplateSelect(null);
   };
 
@@ -143,9 +191,13 @@ export function ClinicTemplateSelector({
 
   // Handle explicit template selection (when multiple templates exist)
   const handleTemplateChange = (templateId: string) => {
-    const template = matchingTemplates.find((t) => t.id === templateId) || null;
-    setSelectedTemplate(template);
-    onTemplateSelect(template);
+    const entry = matchingEntries.find((t) => t.id === templateId) || null;
+    setSelectedEntry(entry);
+    if (entry) {
+      onTemplateSelect({ template: entry._source, type: entry.type });
+    } else {
+      onTemplateSelect(null);
+    }
   };
 
   if (loading) {
@@ -172,14 +224,14 @@ export function ClinicTemplateSelector({
     );
   }
 
-  if (templates.length === 0) {
+  if (allEntries.length === 0) {
     return (
       <Card className={className}>
         <CardContent className="py-8 text-center">
           <FileText className="h-12 w-12 mx-auto text-slate-300 mb-4" />
           <h3 className="text-lg font-semibold text-slate-700">No templates available</h3>
           <p className="text-slate-500 mt-1">
-            Please upload clinic templates in the template management page first.
+            Please upload clinic templates (DOCX or PDF) in the template management page first.
           </p>
         </CardContent>
       </Card>
@@ -246,23 +298,30 @@ export function ClinicTemplateSelector({
         )}
 
         {/* Template Selection (if multiple templates for same clinic + type) */}
-        {matchingTemplates.length > 1 && (
+        {matchingEntries.length > 1 && (
           <div className="space-y-2">
             <Label htmlFor="template-select">Template Version</Label>
             <Select
-              value={selectedTemplate?.id || ''}
+              value={selectedEntry?.id || ''}
               onValueChange={handleTemplateChange}
             >
               <SelectTrigger id="template-select">
                 <SelectValue placeholder="Select template..." />
               </SelectTrigger>
               <SelectContent>
-                {matchingTemplates.map((template) => (
-                  <SelectItem key={template.id} value={template.id}>
+                {matchingEntries.map((entry) => (
+                  <SelectItem key={entry.id} value={entry.id}>
                     <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-blue-500" />
-                      {template.template_name}
-                      {template.is_default && (
+                      <FileText
+                        className={`h-4 w-4 ${
+                          entry.type === 'pdf' ? 'text-red-500' : 'text-blue-500'
+                        }`}
+                      />
+                      {entry.template_name}
+                      <Badge variant="outline" className="text-xs ml-1">
+                        {entry.type.toUpperCase()}
+                      </Badge>
+                      {entry.is_default && (
                         <Star className="h-3 w-3 text-yellow-500 fill-current" />
                       )}
                     </div>
@@ -274,14 +333,21 @@ export function ClinicTemplateSelector({
         )}
 
         {/* Selected Template Preview */}
-        {selectedTemplate && (
+        {selectedEntry && (
           <div className="p-3 bg-slate-50 rounded-lg border">
             <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-blue-500" />
+              <FileText
+                className={`h-5 w-5 ${
+                  selectedEntry.type === 'pdf' ? 'text-red-500' : 'text-blue-500'
+                }`}
+              />
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">{selectedTemplate.template_name}</span>
-                  {selectedTemplate.is_default && (
+                  <span className="font-medium">{selectedEntry.template_name}</span>
+                  <Badge variant="outline" className="text-xs">
+                    {selectedEntry.type.toUpperCase()}
+                  </Badge>
+                  {selectedEntry.is_default && (
                     <Badge variant="outline" className="text-xs">
                       <Star className="h-3 w-3 mr-1 fill-current text-yellow-500" />
                       Default
@@ -289,14 +355,14 @@ export function ClinicTemplateSelector({
                   )}
                 </div>
                 <div className="text-sm text-slate-500">
-                  {selectedTemplate.file_name}
+                  {selectedEntry.file_name}
                 </div>
               </div>
             </div>
-            {selectedTemplate.placeholders_detected?.length > 0 && (
+            {selectedEntry.type === 'docx' && 'placeholders_detected' in selectedEntry._source && (
               <div className="mt-2 text-xs text-slate-400">
-                Supports: {selectedTemplate.placeholders_detected.slice(0, 8).join(', ')}
-                {selectedTemplate.placeholders_detected.length > 8 && '...'}
+                Supports: {(selectedEntry._source as DocumentTemplate).placeholders_detected?.slice(0, 8).join(', ')}
+                {((selectedEntry._source as DocumentTemplate).placeholders_detected?.length || 0) > 8 && '...'}
               </div>
             )}
           </div>

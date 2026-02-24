@@ -12,11 +12,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, FileText, FileType, Download, AlertCircle, Check } from 'lucide-react';
-import { ClinicTemplateSelector } from './ClinicTemplateSelector';
+import { ClinicTemplateSelector, SelectedTemplate } from './ClinicTemplateSelector';
 import {
-  DocumentTemplate,
   NoteTemplateData,
   ExportFormat,
+  TemplateType,
 } from '@/lib/templates/types';
 import { Note, BrandingSettings } from '@/lib/types';
 
@@ -34,8 +34,8 @@ interface TemplateExportProps {
  * Template Export Dialog
  *
  * Allows users to:
- * 1. Select a clinic template
- * 2. Export the note to DOCX or PDF using that template
+ * 1. Select a clinic template (DOCX or PDF)
+ * 2. Export the note using that template
  *
  * The template placeholders are filled with the note data.
  */
@@ -46,7 +46,7 @@ export function TemplateExport({
   noteData,
   defaultClinic,
 }: TemplateExportProps) {
-  const [selectedTemplate, setSelectedTemplate] = useState<DocumentTemplate | null>(null);
+  const [selection, setSelection] = useState<SelectedTemplate | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,8 +64,14 @@ export function TemplateExport({
   }, [open]);
 
   const handleExport = async (format: ExportFormat) => {
-    if (!selectedTemplate) {
+    if (!selection) {
       setError('Please select a template first');
+      return;
+    }
+
+    // PDF templates can only export as PDF
+    if (selection.type === 'pdf' && format === 'docx') {
+      setError('PDF templates can only be exported as PDF');
       return;
     }
 
@@ -78,7 +84,6 @@ export function TemplateExport({
       // Merge branding/provider info with note data
       const exportData: NoteTemplateData = {
         ...noteData,
-        // Provider/Signature info from branding settings
         therapistName: branding?.provider_name || '',
         therapistCredentials: branding?.provider_credentials || '',
         therapistLicense: branding?.provider_license || '',
@@ -87,7 +92,6 @@ export function TemplateExport({
           month: 'long',
           day: 'numeric',
         }),
-        // Clinic info from branding
         clinicName: branding?.clinic_name || '',
         clinicAddress: branding?.address || '',
         clinicPhone: branding?.phone || '',
@@ -97,8 +101,9 @@ export function TemplateExport({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          template_id: selectedTemplate.id,
-          format,
+          template_id: selection.template.id,
+          template_type: selection.type,
+          format: selection.type === 'pdf' ? 'pdf' : format,
           note_data: exportData,
           note_id: note.id,
         }),
@@ -111,7 +116,8 @@ export function TemplateExport({
 
       // Get filename from Content-Disposition header
       const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = `export.${format}`;
+      const actualFormat = selection.type === 'pdf' ? 'pdf' : format;
+      let filename = `export.${actualFormat}`;
       if (contentDisposition) {
         const match = contentDisposition.match(/filename="(.+)"/);
         if (match) filename = match[1];
@@ -128,7 +134,7 @@ export function TemplateExport({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      setSuccess(`${format.toUpperCase()} exported successfully!`);
+      setSuccess(`${actualFormat.toUpperCase()} exported successfully!`);
 
       // Close dialog after short delay
       setTimeout(() => {
@@ -143,20 +149,22 @@ export function TemplateExport({
     }
   };
 
+  const isPdfTemplate = selection?.type === 'pdf';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] h-[520px] flex flex-col">
         <DialogHeader>
           <DialogTitle>Export with Template</DialogTitle>
           <DialogDescription>
-            Select a clinic template to export this note. The template's formatting will be preserved exactly.
+            Select a clinic template (DOCX or PDF) to export this note.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto py-4">
           {/* Template Selector */}
           <ClinicTemplateSelector
-            onTemplateSelect={setSelectedTemplate}
+            onTemplateSelect={setSelection}
             defaultClinic={defaultClinic || note.clinic_name || undefined}
             className="border-0 shadow-none p-0"
           />
@@ -178,16 +186,24 @@ export function TemplateExport({
           )}
 
           {/* Template Info */}
-          {selectedTemplate && (
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
-              <h4 className="text-sm font-medium text-blue-900">
-                Template: {selectedTemplate.template_name}
+          {selection && (
+            <div className={`mt-4 p-4 rounded-lg border ${
+              isPdfTemplate ? 'bg-red-50 border-red-100' : 'bg-blue-50 border-blue-100'
+            }`}>
+              <h4 className={`text-sm font-medium ${isPdfTemplate ? 'text-red-900' : 'text-blue-900'}`}>
+                Template: {selection.template.template_name}
+                <span className="ml-2 text-xs font-normal opacity-70">
+                  ({selection.type.toUpperCase()})
+                </span>
               </h4>
-              <p className="text-xs text-blue-700 mt-1">
-                Clinic: {selectedTemplate.clinic_name}
+              <p className={`text-xs mt-1 ${isPdfTemplate ? 'text-red-700' : 'text-blue-700'}`}>
+                Clinic: {selection.template.clinic_name}
               </p>
-              <p className="text-xs text-blue-600 mt-2">
-                The exported document will use this template's exact formatting, branding, and layout.
+              <p className={`text-xs mt-2 ${isPdfTemplate ? 'text-red-600' : 'text-blue-600'}`}>
+                {isPdfTemplate
+                  ? 'This PDF template will be filled with your note data and exported as PDF.'
+                  : "The exported document will use this template's exact formatting, branding, and layout."
+                }
               </p>
             </div>
           )}
@@ -204,7 +220,7 @@ export function TemplateExport({
           <Button
             variant="outline"
             onClick={() => handleExport('pdf')}
-            disabled={!selectedTemplate || exporting}
+            disabled={!selection || exporting}
             className="gap-2"
           >
             {exporting && exportFormat === 'pdf' ? (
@@ -214,18 +230,20 @@ export function TemplateExport({
             )}
             Export PDF
           </Button>
-          <Button
-            onClick={() => handleExport('docx')}
-            disabled={!selectedTemplate || exporting}
-            className="gap-2"
-          >
-            {exporting && exportFormat === 'docx' ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <FileText className="h-4 w-4" />
-            )}
-            Export Word
-          </Button>
+          {!isPdfTemplate && (
+            <Button
+              onClick={() => handleExport('docx')}
+              disabled={!selection || exporting}
+              className="gap-2"
+            >
+              {exporting && exportFormat === 'docx' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4" />
+              )}
+              Export Word
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

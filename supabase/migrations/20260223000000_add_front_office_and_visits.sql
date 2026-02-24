@@ -52,7 +52,7 @@ USING (
     SELECT 1 FROM clinic_memberships
     WHERE clinic_memberships.user_id = auth.uid()
       AND (clinic_memberships.clinic_id_ref = visits.clinic_id
-           OR clinic_memberships.clinic_id = visits.clinic_id::text)
+           OR clinic_memberships.clinic_id = visits.clinic_id)
       AND clinic_memberships.is_active = true
       AND clinic_memberships.role IN ('admin', 'pt', 'front_office')
   )
@@ -62,7 +62,7 @@ USING (
       SELECT 1 FROM clinic_memberships
       WHERE clinic_memberships.user_id = auth.uid()
         AND (clinic_memberships.clinic_id_ref = visits.clinic_id
-             OR clinic_memberships.clinic_id = visits.clinic_id::text)
+             OR clinic_memberships.clinic_id = visits.clinic_id)
         AND clinic_memberships.is_active = true
         AND clinic_memberships.role = 'pta'
     )
@@ -78,7 +78,7 @@ WITH CHECK (
     SELECT 1 FROM clinic_memberships
     WHERE clinic_memberships.user_id = auth.uid()
       AND (clinic_memberships.clinic_id_ref = visits.clinic_id
-           OR clinic_memberships.clinic_id = visits.clinic_id::text)
+           OR clinic_memberships.clinic_id = visits.clinic_id)
       AND clinic_memberships.is_active = true
       AND clinic_memberships.role IN ('admin', 'front_office', 'pt')
   )
@@ -92,7 +92,7 @@ USING (
     SELECT 1 FROM clinic_memberships
     WHERE clinic_memberships.user_id = auth.uid()
       AND (clinic_memberships.clinic_id_ref = visits.clinic_id
-           OR clinic_memberships.clinic_id = visits.clinic_id::text)
+           OR clinic_memberships.clinic_id = visits.clinic_id)
       AND clinic_memberships.is_active = true
       AND clinic_memberships.role IN ('admin', 'front_office', 'pt')
   )
@@ -106,7 +106,7 @@ USING (
     SELECT 1 FROM clinic_memberships
     WHERE clinic_memberships.user_id = auth.uid()
       AND (clinic_memberships.clinic_id_ref = visits.clinic_id
-           OR clinic_memberships.clinic_id = visits.clinic_id::text)
+           OR clinic_memberships.clinic_id = visits.clinic_id)
       AND clinic_memberships.is_active = true
       AND clinic_memberships.role = 'admin'
   )
@@ -126,7 +126,7 @@ WITH CHECK (
     SELECT 1 FROM clinic_memberships
     WHERE clinic_memberships.user_id = auth.uid()
       AND (clinic_memberships.clinic_id_ref = (SELECT clinic_id FROM episodes WHERE id = episode_id)
-           OR clinic_memberships.clinic_id = (SELECT clinic_id FROM episodes WHERE id = episode_id)::text)
+           OR clinic_memberships.clinic_id = (SELECT clinic_id FROM episodes WHERE id = episode_id))
       AND clinic_memberships.role = 'front_office'
       AND clinic_memberships.is_active = true
   )
@@ -140,7 +140,7 @@ USING (
     SELECT 1 FROM clinic_memberships
     WHERE clinic_memberships.user_id = auth.uid()
       AND (clinic_memberships.clinic_id_ref = (SELECT clinic_id FROM episodes WHERE id = episode_id)
-           OR clinic_memberships.clinic_id = (SELECT clinic_id FROM episodes WHERE id = episode_id)::text)
+           OR clinic_memberships.clinic_id = (SELECT clinic_id FROM episodes WHERE id = episode_id))
       AND clinic_memberships.role = 'front_office'
       AND clinic_memberships.is_active = true
   )

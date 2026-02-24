@@ -320,3 +320,133 @@ export function getDefaultTemplate(
       t.clinic_name === clinicName && t.note_type === noteType && t.is_default
   );
 }
+
+// ============================================================================
+// PDF Form Templates
+// ============================================================================
+
+export type PdfFieldType = 'text' | 'textarea' | 'checkbox' | 'date' | 'signature';
+
+/**
+ * Available placeholder sources that map to NoteTemplateData properties.
+ * Used in the field mapper UI for the dropdown.
+ */
+export const PDF_PLACEHOLDER_SOURCES = {
+  // Patient Info
+  patientName: 'Patient Name',
+  patientFirstName: 'Patient First Name',
+  patientLastName: 'Patient Last Name',
+  dob: 'Date of Birth',
+  age: 'Age',
+  insuranceId: 'Insurance ID',
+  referringMd: 'Referring MD',
+  medicalDx: 'Medical Diagnosis',
+  treatmentDx: 'Treatment Diagnosis',
+  allergies: 'Allergies',
+  precautions: 'Precautions',
+  startOfCare: 'Start of Care',
+  language: 'Language',
+
+  // Session Info
+  dateOfService: 'Date of Service',
+  timeIn: 'Time In',
+  timeOut: 'Time Out',
+  totalTime: 'Total Time',
+  units: 'Units',
+
+  // SOAP Sections
+  subjective: 'Subjective',
+  objective: 'Objective',
+  assessment: 'Assessment',
+  plan: 'Plan',
+  patientHistory: 'Patient History',
+
+  // Goals
+  shortTermGoals: 'Short Term Goals',
+  longTermGoals: 'Long Term Goals',
+
+  // Plan of Care
+  prognosis: 'Prognosis',
+  frequency: 'Frequency',
+  duration: 'Duration',
+  hep: 'Home Exercise Program',
+
+  // Billing
+  dxCodes: 'Diagnosis Codes',
+  cptCodes: 'CPT Codes',
+  billingJustification: 'Billing Justification',
+
+  // Provider
+  therapistName: 'Therapist Name',
+  therapistCredentials: 'Therapist Credentials',
+  therapistLicense: 'Therapist License',
+  signatureDate: 'Signature Date',
+  supervisingPtName: 'Supervising PT Name',
+
+  // Clinic
+  clinicName: 'Clinic Name',
+  clinicAddress: 'Clinic Address',
+  clinicPhone: 'Clinic Phone',
+} as const;
+
+export type PlaceholderSource = keyof typeof PDF_PLACEHOLDER_SOURCES;
+
+/**
+ * A single fillable field on a PDF template
+ */
+export interface PdfFormField {
+  id: string;
+  template_id: string;
+  field_name: string;
+  field_label: string;
+  field_type: PdfFieldType;
+  page_number: number;
+  x_coordinate: number;
+  y_coordinate: number;
+  width: number;
+  height: number;
+  placeholder_source: PlaceholderSource;
+  sort_order: number;
+  is_required: boolean;
+  font_size: number;
+  font_name: string;
+  created_at: string;
+}
+
+/**
+ * PDF form template stored in the database
+ */
+export interface PdfFormTemplate {
+  id: string;
+  clinic_name: string;
+  note_type: DocumentNoteType;
+  template_name: string;
+  description?: string | null;
+  file_key: string;
+  file_name: string;
+  file_size: number;
+  is_default: boolean;
+  num_pages: number | null;
+  detected_sections: Array<{ label: string; pageNumber: number; y: number }>;
+  fields?: PdfFormField[];
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Template type discriminator for unified template handling
+ */
+export type TemplateType = 'docx' | 'pdf';
+
+/**
+ * Unified template reference (used in selector)
+ */
+export interface UnifiedTemplate {
+  id: string;
+  type: TemplateType;
+  clinic_name: string;
+  note_type: DocumentNoteType;
+  template_name: string;
+  is_default: boolean;
+  file_name: string;
+}
