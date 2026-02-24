@@ -1,0 +1,1183 @@
+'use client';
+
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import {
+  format,
+  startOfWeek,
+  addDays,
+  addWeeks,
+  subWeeks,
+  isSameDay,
+  parseISO,
+  startOfDay,
+  endOfDay,
+  isToday,
+  differenceInMinutes,
+  setHours,
+  setMinutes,
+} from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Calendar,
+  Clock,
+  User,
+  Loader2,
+  Search,
+  MapPin,
+  Repeat,
+  X,
+} from 'lucide-react';
+import { TopNav } from '@/components/layout/TopNav';
+import { useAuth } from '@/lib/auth-context';
+import {
+  Visit,
+  AppointmentStatus,
+  APPOINTMENT_STATUS_LABELS,
+  APPOINTMENT_STATUS_COLORS,
+  Patient,
+} from '@/lib/types';
+import { toast } from 'sonner';
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const HOUR_HEIGHT = 60; // px per hour
+const START_HOUR = 6;
+const END_HOUR = 20;
+const TOTAL_HOURS = END_HOUR - START_HOUR;
+
+const VISIT_TYPE_OPTIONS = [
+  { value: 'treatment', label: 'Treatment' },
+  { value: 'evaluation', label: 'Evaluation' },
+  { value: 're_evaluation', label: 'Re-Evaluation' },
+  { value: 'discharge', label: 'Discharge' },
+];
+
+const STATUS_ACTIONS: { from: AppointmentStatus[]; to: AppointmentStatus; label: string }[] = [
+  { from: ['scheduled'], to: 'checked_in', label: 'Check In' },
+  { from: ['checked_in', 'in_progress'], to: 'checked_out', label: 'Check Out' },
+  { from: ['scheduled', 'checked_in', 'in_progress'], to: 'no_show', label: 'No Show' },
+  { from: ['scheduled', 'checked_in', 'in_progress'], to: 'cancelled', label: 'Cancel' },
+];
+
+// Appointment block color (left border) by status
+const BLOCK_COLORS: Record<AppointmentStatus, string> = {
+  scheduled: 'border-l-blue-500 bg-blue-50 hover:bg-blue-100',
+  checked_in: 'border-l-cyan-500 bg-cyan-50 hover:bg-cyan-100',
+  in_progress: 'border-l-amber-500 bg-amber-50 hover:bg-amber-100',
+  checked_out: 'border-l-purple-500 bg-purple-50 hover:bg-purple-100',
+  completed: 'border-l-emerald-500 bg-emerald-50 hover:bg-emerald-100',
+  no_show: 'border-l-red-500 bg-red-50 hover:bg-red-100',
+  cancelled: 'border-l-slate-400 bg-slate-50 hover:bg-slate-100',
+  rescheduled: 'border-l-orange-500 bg-orange-50 hover:bg-orange-100',
+};
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+interface TherapistOption {
+  user_id: string;
+  name: string;
+}
+
+function timeToMinutesSinceMidnight(dateStr: string): number {
+  const d = parseISO(dateStr);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function minutesToTop(minutes: number): number {
+  const minutesSinceStart = minutes - START_HOUR * 60;
+  return (minutesSinceStart / 60) * HOUR_HEIGHT;
+}
+
+function formatTime12h(dateStr: string): string {
+  return format(parseISO(dateStr), 'h:mm a');
+}
+
+interface AppointmentFormData {
+  patient_id: string;
+  therapist_user_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  visit_type: string;
+  location: string;
+  notes: string;
+  is_recurring: boolean;
+  recurrence_weeks: number;
+  recurrence_days: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Page Component
+// ---------------------------------------------------------------------------
+
+export default function SchedulePage() {
+  const { currentClinic, loading: authLoading } = useAuth();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // View state
+  const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const weekStart = useMemo(
+    () => startOfWeek(currentDate, { weekStartsOn: 0 }),
+    [currentDate]
+  );
+
+  // Data
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [therapists, setTherapists] = useState<TherapistOption[]>([]);
+  const [loadingVisits, setLoadingVisits] = useState(false);
+
+  // Filters
+  const [filterTherapist, setFilterTherapist] = useState<string>('all');
+
+  // Dialogs
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
+  const [newApptOpen, setNewApptOpen] = useState(false);
+
+  // New appointment form
+  const [formData, setFormData] = useState<AppointmentFormData>({
+    patient_id: '',
+    therapist_user_id: '',
+    date: format(new Date(), 'yyyy-MM-dd'),
+    start_time: '09:00',
+    end_time: '09:45',
+    visit_type: 'treatment',
+    location: '',
+    notes: '',
+    is_recurring: false,
+    recurrence_weeks: 8,
+    recurrence_days: ['MO'] as string[],
+  });
+  const [patientSearch, setPatientSearch] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // Data fetching
+  // ---------------------------------------------------------------------------
+
+  const fetchVisits = useCallback(async () => {
+    if (!currentClinic?.clinic_id) return;
+    setLoadingVisits(true);
+    try {
+      let from: string;
+      let to: string;
+      if (viewMode === 'week') {
+        from = startOfDay(weekStart).toISOString();
+        to = endOfDay(addDays(weekStart, 6)).toISOString();
+      } else {
+        from = startOfDay(currentDate).toISOString();
+        to = endOfDay(currentDate).toISOString();
+      }
+      const res = await fetch(
+        `/api/visits?clinic_id=${currentClinic.clinic_id}&from=${from}&to=${to}`
+      );
+      if (!res.ok) throw new Error('Failed to fetch visits');
+      const data: Visit[] = await res.json();
+      setVisits(data);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load appointments');
+    } finally {
+      setLoadingVisits(false);
+    }
+  }, [currentClinic?.clinic_id, weekStart, currentDate, viewMode]);
+
+  const fetchPatients = useCallback(async () => {
+    if (!currentClinic?.clinic_id) return;
+    try {
+      const res = await fetch(`/api/patients?clinic_id=${currentClinic.clinic_id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPatients(data);
+      }
+    } catch (err) {
+      console.error('Error fetching patients:', err);
+    }
+  }, [currentClinic?.clinic_id]);
+
+  const fetchTherapists = useCallback(async () => {
+    if (!currentClinic?.clinic_id) return;
+    try {
+      const res = await fetch(`/api/clinic-members?clinic_id=${currentClinic.clinic_id}`);
+      if (res.ok) {
+        const data = await res.json();
+        const therapistMembers = data
+          .filter((m: { role: string; is_active: boolean }) =>
+            ['pt', 'pta'].includes(m.role) && m.is_active
+          )
+          .map((m: { user_id: string; display_name?: string; email?: string }) => ({
+            user_id: m.user_id,
+            name: m.display_name || m.email || m.user_id,
+          }));
+        setTherapists(therapistMembers);
+      }
+    } catch (err) {
+      console.error('Error fetching therapists:', err);
+    }
+  }, [currentClinic?.clinic_id]);
+
+  useEffect(() => {
+    fetchVisits();
+  }, [fetchVisits]);
+
+  useEffect(() => {
+    fetchPatients();
+    fetchTherapists();
+  }, [fetchPatients, fetchTherapists]);
+
+  // Scroll to 8am on mount
+  useEffect(() => {
+    if (scrollRef.current) {
+      const top8am = (8 - START_HOUR) * HOUR_HEIGHT;
+      scrollRef.current.scrollTop = top8am;
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Navigation
+  // ---------------------------------------------------------------------------
+
+  const goToday = () => setCurrentDate(new Date());
+  const goPrev = () => {
+    if (viewMode === 'week') {
+      setCurrentDate((d: Date) => subWeeks(d, 1));
+    } else {
+      setCurrentDate((d: Date) => addDays(d, -1));
+    }
+  };
+  const goNext = () => {
+    if (viewMode === 'week') {
+      setCurrentDate((d: Date) => addWeeks(d, 1));
+    } else {
+      setCurrentDate((d: Date) => addDays(d, 1));
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Filtered visits
+  // ---------------------------------------------------------------------------
+
+  const filteredVisits = useMemo(() => {
+    if (filterTherapist === 'all') return visits;
+    return visits.filter((v: Visit) => v.therapist_user_id === filterTherapist);
+  }, [visits, filterTherapist]);
+
+  // ---------------------------------------------------------------------------
+  // Days to render
+  // ---------------------------------------------------------------------------
+
+  const daysToRender = useMemo(() => {
+    if (viewMode === 'day') return [currentDate];
+    return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  }, [viewMode, currentDate, weekStart]);
+
+  // ---------------------------------------------------------------------------
+  // Get visits for a specific day
+  // ---------------------------------------------------------------------------
+
+  const visitsForDay = useCallback(
+    (day: Date) =>
+      filteredVisits.filter((v: Visit) => isSameDay(parseISO(v.start_time), day)),
+    [filteredVisits]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Appointment click handler
+  // ---------------------------------------------------------------------------
+
+  const handleVisitClick = (visit: Visit) => {
+    setSelectedVisit(visit);
+    setDetailsOpen(true);
+  };
+
+  // ---------------------------------------------------------------------------
+  // Status update
+  // ---------------------------------------------------------------------------
+
+  const handleStatusChange = async (visitId: string, newStatus: AppointmentStatus) => {
+    setUpdatingStatus(true);
+    try {
+      const res = await fetch(`/api/visits/${visitId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+      const updated = await res.json();
+      setVisits((prev: Visit[]) => prev.map((v: Visit) => (v.id === visitId ? { ...v, ...updated } : v)));
+      setSelectedVisit((prev: Visit | null) => (prev && prev.id === visitId ? { ...prev, ...updated } : prev));
+      toast.success(`Status updated to ${APPOINTMENT_STATUS_LABELS[newStatus]}`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to update status');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Delete visit
+  // ---------------------------------------------------------------------------
+
+  const handleDeleteVisit = async (visitId: string) => {
+    if (!confirm('Are you sure you want to delete this appointment?')) return;
+    try {
+      const res = await fetch(`/api/visits/${visitId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete');
+      setVisits((prev: Visit[]) => prev.filter((v: Visit) => v.id !== visitId));
+      setDetailsOpen(false);
+      setSelectedVisit(null);
+      toast.success('Appointment deleted');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to delete appointment');
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Create appointment
+  // ---------------------------------------------------------------------------
+
+  const handleCreateAppointment = async () => {
+    if (!currentClinic?.clinic_id) return;
+    setSubmitting(true);
+
+    try {
+      const startISO = new Date(`${formData.date}T${formData.start_time}:00`).toISOString();
+      const endISO = new Date(`${formData.date}T${formData.end_time}:00`).toISOString();
+
+      if (formData.is_recurring) {
+        const dayStr = formData.recurrence_days.join(',');
+        const rrule = `FREQ=WEEKLY;COUNT=${formData.recurrence_weeks};BYDAY=${dayStr}`;
+
+        const res = await fetch('/api/visits/recurring', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clinic_id: currentClinic.clinic_id,
+            patient_id: formData.patient_id || null,
+            therapist_user_id: formData.therapist_user_id || null,
+            start_time: startISO,
+            end_time: endISO,
+            visit_type: formData.visit_type,
+            location: formData.location || null,
+            notes: formData.notes || null,
+            recurrence_rule: rrule,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to create recurring appointments');
+        }
+
+        const result = await res.json();
+        toast.success(`Created ${result.count} recurring appointments`);
+      } else {
+        const res = await fetch('/api/visits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clinic_id: currentClinic.clinic_id,
+            patient_id: formData.patient_id || null,
+            therapist_user_id: formData.therapist_user_id || null,
+            start_time: startISO,
+            end_time: endISO,
+            visit_type: formData.visit_type,
+            location: formData.location || null,
+            notes: formData.notes || null,
+            source: 'manual',
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to create appointment');
+        }
+
+        toast.success('Appointment created');
+      }
+
+      setNewApptOpen(false);
+      resetForm();
+      fetchVisits();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to create appointment';
+      console.error(err);
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      patient_id: '',
+      therapist_user_id: '',
+      date: format(new Date(), 'yyyy-MM-dd'),
+      start_time: '09:00',
+      end_time: '09:45',
+      visit_type: 'treatment',
+      location: '',
+      notes: '',
+      is_recurring: false,
+      recurrence_weeks: 8,
+      recurrence_days: ['MO'],
+    });
+    setPatientSearch('');
+  };
+
+  // ---------------------------------------------------------------------------
+  // Patient search filter
+  // ---------------------------------------------------------------------------
+
+  const filteredPatients = useMemo(() => {
+    if (!patientSearch.trim()) return patients.slice(0, 20);
+    const q = patientSearch.toLowerCase();
+    return patients
+      .filter(
+        (p: Patient) =>
+          p.first_name.toLowerCase().includes(q) ||
+          p.last_name.toLowerCase().includes(q) ||
+          `${p.first_name} ${p.last_name}`.toLowerCase().includes(q)
+      )
+      .slice(0, 20);
+  }, [patients, patientSearch]);
+
+  // ---------------------------------------------------------------------------
+  // Resolve names
+  // ---------------------------------------------------------------------------
+
+  const getPatientName = useCallback(
+    (patientId: string | null | undefined) => {
+      if (!patientId) return 'No patient';
+      const p = patients.find((pt: Patient) => pt.id === patientId);
+      return p ? `${p.first_name} ${p.last_name}` : 'Unknown Patient';
+    },
+    [patients]
+  );
+
+  const getTherapistName = useCallback(
+    (therapistId: string | null | undefined) => {
+      if (!therapistId) return 'Unassigned';
+      const t = therapists.find((th: TherapistOption) => th.user_id === therapistId);
+      return t ? t.name : 'Unknown';
+    },
+    [therapists]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Header label
+  // ---------------------------------------------------------------------------
+
+  const headerLabel = useMemo(() => {
+    if (viewMode === 'day') {
+      return format(currentDate, 'EEEE, MMMM d, yyyy');
+    }
+    const end = addDays(weekStart, 6);
+    if (weekStart.getMonth() === end.getMonth()) {
+      return `${format(weekStart, 'MMMM d')} - ${format(end, 'd, yyyy')}`;
+    }
+    return `${format(weekStart, 'MMM d')} - ${format(end, 'MMM d, yyyy')}`;
+  }, [viewMode, currentDate, weekStart]);
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
+  if (authLoading) {
+    return (
+      <>
+        <TopNav />
+        <div className="flex items-center justify-center h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <TopNav />
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* ----------------------------------------------------------------- */}
+        {/* Toolbar                                                           */}
+        {/* ----------------------------------------------------------------- */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <Calendar className="h-6 w-6 text-slate-700" />
+            <h1 className="text-2xl font-bold text-slate-900">Schedule</h1>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* View toggle */}
+            <div className="flex border rounded-md overflow-hidden">
+              <button
+                onClick={() => setViewMode('day')}
+                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                  viewMode === 'day'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                Day
+              </button>
+              <button
+                onClick={() => setViewMode('week')}
+                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                  viewMode === 'week'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                Week
+              </button>
+            </div>
+
+            {/* Navigation */}
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" onClick={goPrev}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={goToday}>
+                Today
+              </Button>
+              <Button variant="outline" size="sm" onClick={goNext}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Therapist filter */}
+            <Select value={filterTherapist} onValueChange={setFilterTherapist}>
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue placeholder="All Therapists" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Therapists</SelectItem>
+                {therapists.map((t: TherapistOption) => (
+                  <SelectItem key={t.user_id} value={t.user_id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* New Appointment */}
+            <Button
+              onClick={() => {
+                resetForm();
+                setNewApptOpen(true);
+              }}
+              size="sm"
+              className="gap-1"
+            >
+              <Plus className="h-4 w-4" />
+              New Appointment
+            </Button>
+          </div>
+        </div>
+
+        {/* Date header */}
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-slate-800">{headerLabel}</h2>
+          {loadingVisits && (
+            <div className="flex items-center gap-2 mt-1 text-sm text-slate-500">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Loading...
+            </div>
+          )}
+        </div>
+
+        {/* ----------------------------------------------------------------- */}
+        {/* Calendar grid                                                     */}
+        {/* ----------------------------------------------------------------- */}
+        <div className="border rounded-lg bg-white overflow-hidden">
+          {/* Day headers */}
+          <div
+            className="grid border-b bg-slate-50"
+            style={{
+              gridTemplateColumns: `64px repeat(${daysToRender.length}, 1fr)`,
+            }}
+          >
+            {/* Time gutter header */}
+            <div className="border-r p-2 text-xs text-slate-400 text-center">
+              <Clock className="h-3 w-3 mx-auto" />
+            </div>
+            {daysToRender.map((day: Date) => (
+              <div
+                key={day.toISOString()}
+                className={`p-2 text-center border-r last:border-r-0 ${
+                  isToday(day) ? 'bg-blue-50' : ''
+                }`}
+              >
+                <div className="text-xs text-slate-500 uppercase">
+                  {format(day, 'EEE')}
+                </div>
+                <div
+                  className={`text-lg font-semibold ${
+                    isToday(day) ? 'text-blue-600' : 'text-slate-800'
+                  }`}
+                >
+                  {format(day, 'd')}
+                </div>
+                <div className="text-xs text-slate-400">{format(day, 'MMM')}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Scrollable time grid */}
+          <div
+            ref={scrollRef}
+            className="overflow-y-auto"
+            style={{ height: 'calc(100vh - 310px)', minHeight: '400px' }}
+          >
+            <div
+              className="grid relative"
+              style={{
+                gridTemplateColumns: `64px repeat(${daysToRender.length}, 1fr)`,
+                height: `${TOTAL_HOURS * HOUR_HEIGHT}px`,
+              }}
+            >
+              {/* Time gutter */}
+              <div className="border-r relative">
+                {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                  <div
+                    key={i}
+                    className="absolute right-0 left-0 flex items-start justify-end pr-2 -mt-2"
+                    style={{ top: `${i * HOUR_HEIGHT}px` }}
+                  >
+                    <span className="text-xs text-slate-400">
+                      {format(setMinutes(setHours(new Date(), START_HOUR + i), 0), 'h a')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Day columns */}
+              {daysToRender.map((day: Date) => {
+                const dayVisits = visitsForDay(day);
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={`relative border-r last:border-r-0 ${
+                      isToday(day) ? 'bg-blue-50/30' : ''
+                    }`}
+                  >
+                    {/* Hour lines */}
+                    {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                      <div
+                        key={i}
+                        className="absolute left-0 right-0 border-t border-slate-100"
+                        style={{ top: `${i * HOUR_HEIGHT}px` }}
+                      />
+                    ))}
+                    {/* Half-hour lines */}
+                    {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                      <div
+                        key={`half-${i}`}
+                        className="absolute left-0 right-0 border-t border-dashed border-slate-50"
+                        style={{ top: `${i * HOUR_HEIGHT + HOUR_HEIGHT / 2}px` }}
+                      />
+                    ))}
+
+                    {/* Current time indicator */}
+                    {isToday(day) && (() => {
+                      const now = new Date();
+                      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+                      if (nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60) {
+                        return (
+                          <div
+                            className="absolute left-0 right-0 z-20 pointer-events-none"
+                            style={{ top: `${minutesToTop(nowMinutes)}px` }}
+                          >
+                            <div className="flex items-center">
+                              <div className="w-2 h-2 rounded-full bg-red-500 -ml-1" />
+                              <div className="flex-1 h-px bg-red-500" />
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    {/* Appointment blocks */}
+                    {dayVisits.map((visit: Visit) => {
+                      const startMin = timeToMinutesSinceMidnight(visit.start_time);
+                      const endMin = timeToMinutesSinceMidnight(visit.end_time);
+                      const top = minutesToTop(startMin);
+                      const height = ((endMin - startMin) / 60) * HOUR_HEIGHT;
+                      const status: AppointmentStatus = visit.status || 'scheduled';
+                      const blockColor = BLOCK_COLORS[status] || BLOCK_COLORS.scheduled;
+
+                      return (
+                        <button
+                          key={visit.id}
+                          onClick={() => handleVisitClick(visit)}
+                          className={`absolute left-1 right-1 rounded-md border-l-4 px-2 py-1 text-left transition-colors cursor-pointer z-10 overflow-hidden ${blockColor}`}
+                          style={{
+                            top: `${Math.max(top, 0)}px`,
+                            height: `${Math.max(height, 20)}px`,
+                          }}
+                        >
+                          <div className="text-xs font-semibold text-slate-900 truncate">
+                            {visit.patient_name || getPatientName(visit.patient_id)}
+                          </div>
+                          {height > 30 && (
+                            <div className="text-[10px] text-slate-600 truncate">
+                              {formatTime12h(visit.start_time)} -{' '}
+                              {formatTime12h(visit.end_time)}
+                            </div>
+                          )}
+                          {height > 48 && (
+                            <div className="text-[10px] text-slate-500 truncate">
+                              {visit.therapist_name || getTherapistName(visit.therapist_user_id)}
+                            </div>
+                          )}
+                          {height > 62 && (
+                            <Badge
+                              variant="outline"
+                              className={`text-[9px] px-1 py-0 mt-0.5 ${APPOINTMENT_STATUS_COLORS[status]}`}
+                            >
+                              {APPOINTMENT_STATUS_LABELS[status]}
+                            </Badge>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* =================================================================== */}
+      {/* Appointment Details Dialog                                          */}
+      {/* =================================================================== */}
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Appointment Details</DialogTitle>
+            <DialogDescription>
+              View and manage this appointment.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedVisit && (
+            <div className="space-y-4">
+              {/* Patient */}
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-slate-500" />
+                <span className="text-sm font-medium">
+                  {selectedVisit.patient_name || getPatientName(selectedVisit.patient_id)}
+                </span>
+              </div>
+
+              {/* Time */}
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-slate-500" />
+                <span className="text-sm">
+                  {format(parseISO(selectedVisit.start_time), 'EEEE, MMM d, yyyy')}
+                  {' -- '}
+                  {formatTime12h(selectedVisit.start_time)} -{' '}
+                  {formatTime12h(selectedVisit.end_time)}
+                  {' '}
+                  ({differenceInMinutes(
+                    parseISO(selectedVisit.end_time),
+                    parseISO(selectedVisit.start_time)
+                  )}{' '}
+                  min)
+                </span>
+              </div>
+
+              {/* Therapist */}
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-slate-500" />
+                <span className="text-sm text-slate-600">
+                  {selectedVisit.therapist_name ||
+                    getTherapistName(selectedVisit.therapist_user_id)}
+                </span>
+              </div>
+
+              {/* Location */}
+              {selectedVisit.location && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-slate-500" />
+                  <span className="text-sm text-slate-600">{selectedVisit.location}</span>
+                </div>
+              )}
+
+              {/* Visit type */}
+              {selectedVisit.visit_type && (
+                <div className="text-sm">
+                  <span className="text-slate-500">Type: </span>
+                  <span className="capitalize">{selectedVisit.visit_type.replace('_', ' ')}</span>
+                </div>
+              )}
+
+              {/* Recurrence info */}
+              {selectedVisit.recurrence_group_id && (
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <Repeat className="h-3 w-3" />
+                  Recurring series
+                  {selectedVisit.recurrence_rule && (
+                    <span className="text-xs text-slate-400">({selectedVisit.recurrence_rule})</span>
+                  )}
+                </div>
+              )}
+
+              {/* Notes */}
+              {selectedVisit.notes && (
+                <div className="text-sm">
+                  <span className="text-slate-500">Notes: </span>
+                  <span className="text-slate-700">{selectedVisit.notes}</span>
+                </div>
+              )}
+
+              {/* Status badge */}
+              <div>
+                {(() => {
+                  const s: AppointmentStatus = selectedVisit.status || 'scheduled';
+                  return (
+                    <Badge
+                      variant="outline"
+                      className={APPOINTMENT_STATUS_COLORS[s]}
+                    >
+                      {APPOINTMENT_STATUS_LABELS[s]}
+                    </Badge>
+                  );
+                })()}
+              </div>
+
+              {/* Status actions */}
+              <div className="flex flex-wrap gap-2 pt-2 border-t">
+                {STATUS_ACTIONS.filter((a) =>
+                  a.from.includes(selectedVisit.status || 'scheduled')
+                ).map((action) => (
+                  <Button
+                    key={action.to}
+                    size="sm"
+                    variant={action.to === 'cancelled' || action.to === 'no_show' ? 'destructive' : 'outline'}
+                    disabled={updatingStatus}
+                    onClick={() => handleStatusChange(selectedVisit.id, action.to)}
+                  >
+                    {updatingStatus ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    ) : null}
+                    {action.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => selectedVisit && handleDeleteVisit(selectedVisit.id)}
+            >
+              Delete
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setDetailsOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* =================================================================== */}
+      {/* New Appointment Dialog                                              */}
+      {/* =================================================================== */}
+      <Dialog open={newApptOpen} onOpenChange={setNewApptOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>New Appointment</DialogTitle>
+            <DialogDescription>
+              Schedule a new appointment for a patient.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Patient search */}
+            <div className="space-y-2">
+              <Label>Patient</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Search patients by name..."
+                  value={patientSearch}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPatientSearch(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+              {formData.patient_id && (
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="gap-1">
+                    {getPatientName(formData.patient_id)}
+                    <button
+                      onClick={() => setFormData((p: AppointmentFormData) => ({ ...p, patient_id: '' }))}
+                      className="ml-1 hover:text-red-600"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                </div>
+              )}
+              {!formData.patient_id && patientSearch.trim() && (
+                <div className="border rounded-md max-h-32 overflow-y-auto">
+                  {filteredPatients.length === 0 ? (
+                    <div className="p-2 text-sm text-slate-500">No patients found</div>
+                  ) : (
+                    filteredPatients.map((p: Patient) => (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          setFormData((prev: AppointmentFormData) => ({ ...prev, patient_id: p.id }));
+                          setPatientSearch('');
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between"
+                      >
+                        <span>
+                          {p.first_name} {p.last_name}
+                        </span>
+                        {p.date_of_birth && (
+                          <span className="text-xs text-slate-400">
+                            DOB: {p.date_of_birth}
+                          </span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Therapist */}
+            <div className="space-y-2">
+              <Label>Therapist</Label>
+              <Select
+                value={formData.therapist_user_id}
+                onValueChange={(val: string) =>
+                  setFormData((p: AppointmentFormData) => ({ ...p, therapist_user_id: val }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select therapist" />
+                </SelectTrigger>
+                <SelectContent>
+                  {therapists.map((t: TherapistOption) => (
+                    <SelectItem key={t.user_id} value={t.user_id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Date and times */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+                    setFormData((p: AppointmentFormData) => ({ ...p, date: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Start Time</Label>
+                <Input
+                  type="time"
+                  value={formData.start_time}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+                    setFormData((p: AppointmentFormData) => ({ ...p, start_time: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End Time</Label>
+                <Input
+                  type="time"
+                  value={formData.end_time}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+                    setFormData((p: AppointmentFormData) => ({ ...p, end_time: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Visit type */}
+            <div className="space-y-2">
+              <Label>Visit Type</Label>
+              <Select
+                value={formData.visit_type}
+                onValueChange={(val: string) =>
+                  setFormData((p: AppointmentFormData) => ({ ...p, visit_type: val }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {VISIT_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Location */}
+            <div className="space-y-2">
+              <Label>Location (optional)</Label>
+              <Input
+                placeholder="Room, gym, pool..."
+                value={formData.location}
+                onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+                  setFormData((p: AppointmentFormData) => ({ ...p, location: e.target.value }))
+                }
+              />
+            </div>
+
+            {/* Recurrence toggle */}
+            <div className="space-y-3 p-3 border rounded-md bg-slate-50">
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={formData.is_recurring}
+                  onCheckedChange={(checked: boolean) =>
+                    setFormData((p: AppointmentFormData) => ({ ...p, is_recurring: checked }))
+                  }
+                />
+                <Label className="flex items-center gap-1.5">
+                  <Repeat className="h-3.5 w-3.5" />
+                  Recurring Appointment
+                </Label>
+              </div>
+
+              {formData.is_recurring && (
+                <div className="space-y-3 pl-1">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-slate-600">
+                      Repeat weekly for how many weeks?
+                    </Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={52}
+                      value={formData.recurrence_weeks}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+                        setFormData((p: AppointmentFormData) => ({
+                          ...p,
+                          recurrence_weeks: parseInt(e.target.value) || 1,
+                        }))
+                      }
+                      className="w-24"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-slate-600">Days of the week</Label>
+                    <div className="flex flex-wrap gap-1">
+                      {[
+                        { key: 'SU', label: 'Sun' },
+                        { key: 'MO', label: 'Mon' },
+                        { key: 'TU', label: 'Tue' },
+                        { key: 'WE', label: 'Wed' },
+                        { key: 'TH', label: 'Thu' },
+                        { key: 'FR', label: 'Fri' },
+                        { key: 'SA', label: 'Sat' },
+                      ].map((day) => {
+                        const isSelected = formData.recurrence_days.includes(day.key);
+                        return (
+                          <button
+                            key={day.key}
+                            type="button"
+                            onClick={() => {
+                              setFormData((p: AppointmentFormData) => {
+                                const days = isSelected
+                                  ? p.recurrence_days.filter((d: string) => d !== day.key)
+                                  : [...p.recurrence_days, day.key];
+                                return {
+                                  ...p,
+                                  recurrence_days:
+                                    days.length === 0 ? [day.key] : days,
+                                };
+                              });
+                            }}
+                            className={`px-2.5 py-1 text-xs rounded-md border font-medium transition-colors ${
+                              isSelected
+                                ? 'bg-slate-900 text-white border-slate-900'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            {day.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label>Notes (optional)</Label>
+              <Textarea
+                placeholder="Additional notes..."
+                value={formData.notes}
+                onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+                  setFormData((p: AppointmentFormData) => ({ ...p, notes: e.target.value }))
+                }
+                rows={2}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewApptOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateAppointment} disabled={submitting}>
+              {submitting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              {formData.is_recurring ? 'Create Series' : 'Create Appointment'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
