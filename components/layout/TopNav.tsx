@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import {
@@ -33,6 +41,7 @@ import {
   BarChart3,
   FileSignature,
   MessageSquare,
+  Menu,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -40,6 +49,7 @@ export function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, currentClinic, memberships, signOut, setCurrentClinic, hasRole } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const canSeeFrontOffice = hasRole(['admin', 'front_office', 'pt']);
 
@@ -252,6 +262,87 @@ export function TopNav() {
               </Link>
             </nav>
           </div>
+
+          {/* Mobile Menu */}
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="sm" className="md:hidden">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-72 p-0">
+              <SheetHeader className="border-b px-4 py-3">
+                <SheetTitle className="text-left text-sm font-semibold">Navigation</SheetTitle>
+              </SheetHeader>
+              <nav className="flex flex-col py-2">
+                {canSeeFrontOffice && (
+                  <Link href="/front-office" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/front-office') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                    <Briefcase className="h-4 w-4" />
+                    Front Office
+                  </Link>
+                )}
+                <Link href="/" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/') && !isActive('/settings') && !isActive('/charts') && !isActive('/archived') && !isActive('/front-office') && !isActive('/schedule') && !isActive('/billing') && !isActive('/reports') && !isActive('/exercises') && !isActive('/goals') && !isActive('/outcome-measures') && !isActive('/cosign') && !isActive('/messages') && !isActive('/hep') && !isActive('/audit') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <Home className="h-4 w-4" />
+                  Dashboard
+                </Link>
+                <Link href="/schedule" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/schedule') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <Calendar className="h-4 w-4" />
+                  Schedule
+                </Link>
+
+                <div className="px-4 pt-3 pb-1">
+                  <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Clinical</span>
+                </div>
+                <Link href="/goals" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/goals') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <Target className="h-4 w-4" />
+                  Goals (STG/LTG)
+                </Link>
+                <Link href="/outcome-measures" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/outcome-measures') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <BarChart3 className="h-4 w-4" />
+                  Outcome Measures
+                </Link>
+                <Link href="/exercises" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/exercises') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <Dumbbell className="h-4 w-4" />
+                  Exercise Library
+                </Link>
+                <Link href="/hep" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/hep') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <Dumbbell className="h-4 w-4" />
+                  HEP Programs
+                </Link>
+
+                <div className="my-1 border-t" />
+
+                <Link href="/billing" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/billing') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <DollarSign className="h-4 w-4" />
+                  Billing
+                </Link>
+                <Link href="/cosign" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/cosign') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <FileSignature className="h-4 w-4" />
+                  Co-Sign
+                </Link>
+                <Link href="/messages" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/messages') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <MessageSquare className="h-4 w-4" />
+                  Messages
+                </Link>
+                <Link href="/reports" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/reports') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <BarChart3 className="h-4 w-4" />
+                  Reports
+                </Link>
+
+                <div className="my-1 border-t" />
+
+                <Link href="/settings" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/settings') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <Settings className="h-4 w-4" />
+                  Settings
+                </Link>
+                <Link href="/archived" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/archived') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <Archive className="h-4 w-4" />
+                  Archived
+                </Link>
+              </nav>
+            </SheetContent>
+          </Sheet>
 
           {/* Right side - Clinic Switcher and Account */}
           <div className="flex items-center gap-3">
