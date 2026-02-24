@@ -55,6 +55,7 @@ import {
   Episode,
   Patient,
 } from '@/lib/types';
+import { toast } from 'sonner';
 
 interface GoalWithProgress extends TreatmentGoal {
   progress_notes?: GoalProgressNote[];
@@ -276,6 +277,7 @@ export default function GoalsPage() {
           target_date: '',
           parent_goal_id: '',
         });
+        toast.success('Treatment goal created');
         // Refresh goals
         if (currentClinic.clinic_id) {
           const goalsRes = await fetch(`/api/goals?clinic_id=${currentClinic.clinic_id}`);
@@ -283,9 +285,13 @@ export default function GoalsPage() {
             setGoals(await goalsRes.json());
           }
         }
+      } else {
+        const errData = await res.json().catch(() => null);
+        toast.error(errData?.error || 'Failed to create goal');
       }
     } catch (error) {
       console.error('Error creating goal:', error);
+      toast.error('Failed to create goal');
     } finally {
       setSaving(false);
     }
