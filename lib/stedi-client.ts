@@ -31,7 +31,7 @@ export interface StediEligibilityRequest {
     firstName: string;
     lastName: string;
     dateOfBirth: string; // YYYYMMDD
-    gender?: 'M' | 'F' | 'U';
+    gender?: 'M' | 'F';
   };
   encounter?: {
     serviceTypeCodes: string[]; // e.g., ["30"] for health benefit plan coverage
@@ -265,7 +265,7 @@ export interface StediClaimRequest {
     paymentResponsibilityLevelCode: 'P'; // Primary
     firstName: string;
     lastName: string;
-    gender: 'M' | 'F' | 'U';
+    gender: 'M' | 'F';
     dateOfBirth: string; // YYYYMMDD
     address?: {
       address1: string;
